@@ -5,18 +5,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ProtocolItem, Slot } from "@/src/types";
 import { useTheme } from "@/src/theme/useTheme";
 
-const SLOT_META: Record<Slot, { title: string; icon: keyof typeof Ionicons.glyphMap }> =
-  {
-    morning: { title: "Morning", icon: "sunny" },
-    post_workout: { title: "Post-Workout", icon: "barbell" },
-    evening: { title: "Evening", icon: "moon" },
-  };
-
-const TAG_LABEL: Record<string, string> = {
-  lab: "From your labs",
-  travel: "Travel mode",
-  illness: "Illness mode",
-  deload: "Deload mode",
+const SLOT_TIME: Record<Slot, string> = {
+  morning: "7:00 AM · MORNING",
+  post_workout: "POST-WORKOUT",
+  evening: "9:30 PM · EVENING",
 };
 
 export function ChronoCard({
@@ -31,196 +23,173 @@ export function ChronoCard({
   onBuy: (url: string, merchant: string) => void;
 }) {
   const { colors, font, fontSize, radius, spacing } = useTheme();
-  const meta = SLOT_META[item.slot];
+  const timeLabel = SLOT_TIME[item.slot] || item.slot.toUpperCase();
+  const slotColor = item.slot === "evening" ? colors.accent : colors.brand;
 
   return (
     <View
       testID={`chrono-card-${item.canonical}`}
       style={{
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
+        backgroundColor: colors.surfaceContainerLowest,
+        borderRadius: radius.md,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
+        borderColor: colors.outlineVariant + "50",
         padding: spacing.lg,
-        opacity: taken ? 0.72 : 1,
+        shadowColor: "#000",
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 1,
+        opacity: taken ? 0.75 : 1,
       }}
     >
-      {/* header row */}
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: spacing.sm }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            backgroundColor: colors.accentSoft,
-            borderRadius: radius.pill,
-            paddingHorizontal: 10,
-            paddingVertical: 4,
-          }}
-        >
-          <Ionicons name={meta.icon} size={12} color={colors.accent} />
-          <Text
-            style={{ color: colors.accent, fontFamily: font.semibold, fontSize: fontSize.xs }}
-          >
-            {meta.title}
-          </Text>
-        </View>
+      {/* Top Slot Header + In Stash Pill */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 6,
+        }}
+      >
         <Text
           style={{
-            color: colors.textMuted,
-            fontFamily: font.mono,
-            fontSize: fontSize.xs,
-            marginLeft: spacing.sm,
-            flex: 1,
+            color: slotColor,
+            fontFamily: font.semibold,
+            fontSize: fontSize.labelSm,
+            letterSpacing: 0.8,
+            textTransform: "uppercase",
           }}
-          numberOfLines={1}
         >
-          {item.window}
+          {timeLabel}
         </Text>
+
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             gap: 4,
-            backgroundColor: item.inStash ? colors.brandSoft : colors.warningSoft,
+            backgroundColor: item.inStash ? colors.primaryContainer : colors.secondaryFixed,
+            paddingHorizontal: 8,
+            paddingVertical: 3,
             borderRadius: radius.pill,
-            paddingHorizontal: 9,
-            paddingVertical: 4,
           }}
         >
           <Ionicons
-            name={item.inStash ? "cube" : "cart"}
+            name={item.inStash ? "checkmark-circle" : "cart"}
             size={11}
-            color={item.inStash ? colors.brand : colors.warning}
+            color={item.inStash ? colors.onPrimaryContainer : colors.onSecondaryFixed}
           />
           <Text
             style={{
-              color: item.inStash ? colors.brand : colors.warning,
+              color: item.inStash ? colors.onPrimaryContainer : colors.onSecondaryFixed,
               fontFamily: font.medium,
-              fontSize: fontSize.xs,
+              fontSize: 10,
+              fontWeight: "600",
             }}
           >
-            {item.inStash ? "In Your Stash" : "Buy New"}
+            {item.inStash ? "In Stash" : "Buy New"}
           </Text>
         </View>
       </View>
 
-      {/* main row */}
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}>
+      {/* Title with target dose in parentheses + Checkoff button */}
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm }}>
         <View style={{ flex: 1 }}>
           <Text
             style={{
               color: colors.text,
-              fontFamily: font.semibold,
-              fontSize: fontSize.lg,
+              fontFamily: font.heading,
+              fontSize: fontSize.bodyLg,
+              fontWeight: "700",
+              lineHeight: 24,
             }}
           >
-            {item.compound}
+            {item.compound} ({item.targetDose}{item.doseUnit})
           </Text>
-          {item.tag && TAG_LABEL[item.tag] ? (
-            <View
+          {item.inStash && item.doseText ? (
+            <Text
+              testID={`dose-${item.canonical}`}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                alignSelf: "flex-start",
-                marginTop: 4,
-                backgroundColor: item.tag === "lab" ? colors.dangerSoft : colors.accentSoft,
-                borderRadius: radius.pill,
-                paddingHorizontal: 8,
-                paddingVertical: 3,
+                color: colors.brand,
+                fontFamily: font.monoMed,
+                fontSize: fontSize.base,
+                marginTop: 2,
               }}
             >
-              <Ionicons
-                name={item.tag === "lab" ? "water" : "sparkles"}
-                size={10}
-                color={item.tag === "lab" ? colors.danger : colors.accent}
-              />
-              <Text
-                style={{
-                  color: item.tag === "lab" ? colors.danger : colors.accent,
-                  fontFamily: font.medium,
-                  fontSize: fontSize.xs,
-                }}
-              >
-                {TAG_LABEL[item.tag]}
-              </Text>
-            </View>
+              {item.doseText}
+            </Text>
           ) : null}
-          <Text
-            style={{
-              color: colors.brand,
-              fontFamily: font.monoMed,
-              fontSize: fontSize.base,
-              marginTop: 3,
-            }}
-            testID={`dose-${item.canonical}`}
-          >
-            {item.doseText}
-          </Text>
         </View>
 
+        {/* Check-off circle */}
         <Pressable
           testID={`checkoff-${item.canonical}`}
           onPress={onToggle}
-          hitSlop={10}
+          hitSlop={8}
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: taken ? colors.brand : "transparent",
-            borderWidth: taken ? 0 : 2,
-            borderColor: colors.borderStrong,
+            backgroundColor: taken ? colors.brand : colors.surfaceContainerLow,
+            borderWidth: taken ? 0 : StyleSheet.hairlineWidth,
+            borderColor: colors.outlineVariant,
           }}
         >
           <Ionicons
             name={taken ? "checkmark" : "ellipse-outline"}
-            size={taken ? 22 : 20}
+            size={taken ? 20 : 18}
             color={taken ? colors.onBrand : colors.textMuted}
           />
         </Pressable>
       </View>
 
-      {/* rationale */}
+      {/* Rationale & Directions */}
       <Text
         style={{
           color: colors.textMuted,
           fontFamily: font.regular,
           fontSize: fontSize.sm,
-          lineHeight: 19,
-          marginTop: spacing.sm,
+          lineHeight: 20,
+          marginTop: 6,
         }}
       >
         {item.rationale}
       </Text>
 
-      {/* food alternatives */}
-      {item.foodAlternatives.length > 0 && item.foodAlternatives[0] !== "—" ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, flexWrap: "wrap" }}>
-          <Ionicons name="nutrition" size={13} color={colors.textFaint} />
-          {item.foodAlternatives.map((f) => (
-            <View
-              key={f}
-              style={{
-                backgroundColor: colors.surfaceTertiary,
-                borderRadius: radius.sm,
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-              }}
-            >
-              <Text
-                style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: fontSize.xs }}
-              >
-                {f}
-              </Text>
-            </View>
-          ))}
+      {/* Whole-Food Alternative Pill */}
+      {item.foodAlternatives && item.foodAlternatives.length > 0 && item.foodAlternatives[0] !== "—" ? (
+        <View
+          style={{
+            alignSelf: "flex-start",
+            marginTop: spacing.sm,
+            backgroundColor: colors.surfaceContainer,
+            borderRadius: radius.pill,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: colors.outlineVariant + "50",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Ionicons name="nutrition" size={11} color={colors.textMuted} />
+          <Text
+            style={{
+              color: colors.textMuted,
+              fontFamily: font.medium,
+              fontSize: fontSize.labelSm,
+            }}
+          >
+            or {item.foodAlternatives.slice(0, 2).join(", ")}
+          </Text>
         </View>
       ) : null}
 
-      {/* buy options */}
+      {/* Localized Buy Options if not in stash */}
       {!item.inStash && item.buyOptions && item.buyOptions.length > 0 ? (
         <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
           {item.buyOptions.map((b) => (
@@ -234,14 +203,14 @@ export function ChronoCard({
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 6,
-                paddingVertical: 10,
-                borderRadius: radius.md,
-                backgroundColor: colors.surfaceTertiary,
+                paddingVertical: 8,
+                borderRadius: radius.sm,
+                backgroundColor: colors.surfaceContainerLow,
                 borderWidth: StyleSheet.hairlineWidth,
-                borderColor: colors.border,
+                borderColor: colors.outlineVariant + "60",
               }}
             >
-              <Ionicons name="open-outline" size={14} color={colors.text} />
+              <Ionicons name="cart" size={13} color={colors.text} />
               <Text
                 style={{ color: colors.text, fontFamily: font.medium, fontSize: fontSize.sm }}
               >

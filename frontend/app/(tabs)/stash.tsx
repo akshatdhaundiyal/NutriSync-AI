@@ -3,25 +3,18 @@ import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { QualityBadge } from "@/src/components/QualityBadge";
-import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { MissingCompoundCard } from "@/src/components/cabinet/MissingCompoundCard";
+import { SupplementCard } from "@/src/components/cabinet/SupplementCard";
 import { useToast } from "@/src/components/ToastProvider";
 import { Chip, ChipRow } from "@/src/components/ui";
 import { COMPOUNDS } from "@/src/data/compounds";
 import { buyOptions } from "@/src/services/procurement";
 import { useStore } from "@/src/store/useStore";
 import { useTheme } from "@/src/theme/useTheme";
-import { DoseUnit, StashItem } from "@/src/types";
+import { StashItem } from "@/src/types";
 import { tap } from "@/src/utils/haptics";
-
-function doseLabel(u: DoseUnit): string {
-  if (u === "IU") return " IU";
-  if (u === "serving") return " serving";
-  return u;
-}
 
 const FILTERS = [
   { value: "all", label: "All", icon: "apps" as const },
@@ -45,23 +38,6 @@ export default function StashScreen() {
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
 
-  const ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
-    "vitamin-d3": "sunny",
-    omega3: "water",
-    creatine: "flash",
-    magnesium: "moon",
-    "l-theanine": "leaf",
-    ashwagandha: "leaf",
-    zinc: "shield-half",
-    iron: "magnet",
-    "vitamin-b12": "flash",
-    "vitamin-c": "nutrition",
-    glycine: "flask",
-    apigenin: "moon",
-    electrolytes: "flask",
-  };
-  const iconFor = (c: string) => ICON[c] ?? "medical";
-
   const active = stash.filter((s) => !s.deletedAt);
   const isLow = (i: StashItem) =>
     i.stockUnits <= Math.max(10, Math.round(i.unitsPerContainer * 0.15));
@@ -82,21 +58,25 @@ export default function StashScreen() {
   });
 
   const missing = protocol?.items.find((i) => !i.inStash) ?? null;
+  const missingOptions = missing
+    ? buyOptions(COMPOUNDS[missing.canonical]?.label ?? missing.compound, missing.chemicalForm, region)
+    : [];
+
+  const handleBuy = async (url: string) => {
+    tap();
+    await WebBrowser.openBrowserAsync(url);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <ScreenHeader
-        title="Cabinet Stash"
-        subtitle={`${active.length} supplements on shelf`}
-      />
-
-      {/* search + scan row */}
+      {/* Search and Scan Header */}
       <View
         style={{
           flexDirection: "row",
-          gap: spacing.sm,
-          paddingHorizontal: spacing.lg,
+          gap: spacing.innerGap,
+          paddingHorizontal: spacing.containerMargin,
           marginTop: spacing.xs,
+          alignItems: "center",
         }}
       >
         <View
@@ -105,24 +85,27 @@ export default function StashScreen() {
             flexDirection: "row",
             alignItems: "center",
             gap: spacing.sm,
-            backgroundColor: colors.surface,
-            borderRadius: radius.pill,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: colors.border,
-            paddingHorizontal: spacing.md,
-            height: 48,
+            backgroundColor: colors.surfaceContainer,
+            borderRadius: radius.DEFAULT,
+            paddingHorizontal: spacing.lg,
+            height: 56,
           }}
         >
-          <Ionicons name="search" size={18} color={colors.textFaint} />
+          <Ionicons name="search" size={20} color={colors.textMuted} />
           <TextInput
             testID="stash-search"
             value={query}
             onChangeText={setQuery}
-            placeholder="Search your cabinet"
+            placeholder="Search cabinet..."
             placeholderTextColor={colors.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
-            style={{ flex: 1, color: colors.text, fontFamily: font.regular, fontSize: fontSize.base }}
+            style={{
+              flex: 1,
+              color: colors.text,
+              fontFamily: font.regular,
+              fontSize: fontSize.bodyMd,
+            }}
           />
           {query.length > 0 ? (
             <Pressable testID="stash-search-clear" hitSlop={8} onPress={() => setQuery("")}>
@@ -130,6 +113,8 @@ export default function StashScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {/* Square-Rounded Primary Scan Button */}
         <Pressable
           testID="stash-scan"
           onPress={() => {
@@ -137,292 +122,114 @@ export default function StashScreen() {
             router.push("/scan");
           }}
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: radius.lg,
+            width: 56,
+            height: 56,
+            borderRadius: radius.DEFAULT,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: colors.brand,
-            shadowColor: colors.glowShadow,
-            shadowOpacity: 0.35,
-            shadowRadius: 12,
+            shadowColor: "#000",
+            shadowOpacity: 0.12,
+            shadowRadius: 10,
             shadowOffset: { width: 0, height: 4 },
-            elevation: 5,
+            elevation: 4,
           }}
         >
-          <Ionicons name="scan" size={22} color={colors.onBrand} />
+          <Ionicons name="camera" size={26} color={colors.onBrand} />
         </Pressable>
       </View>
 
-      <ChipRow testID="stash-filter-row">
-        {FILTERS.map((f) => (
-          <Chip
-            key={f.value}
-            testID={`filter-${f.value}`}
-            label={f.label}
-            icon={f.icon}
-            active={filter === f.value}
-            onPress={() => {
-              tap();
-              setFilter(f.value);
-            }}
-          />
-        ))}
-      </ChipRow>
+      {/* Filter Chips */}
+      <View style={{ marginVertical: spacing.md, paddingHorizontal: spacing.containerMargin }}>
+        <ChipRow>
+          {FILTERS.map((f) => (
+            <Chip
+              key={f.value}
+              label={f.label}
+              icon={f.icon}
+              active={filter === f.value}
+              onPress={() => {
+                tap();
+                setFilter(f.value);
+              }}
+            />
+          ))}
+        </ChipRow>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingHorizontal: spacing.lg,
+          paddingHorizontal: spacing.containerMargin,
           paddingTop: spacing.sm,
-          paddingBottom: spacing.xxxl + insets.bottom + 24,
+          paddingBottom: spacing.xxxl * 2 + insets.bottom,
+          gap: spacing.stackGap,
         }}
       >
+        {/* Missing Recommended Item Highlight Card */}
         {missing ? (
-          <Animated.View
-            entering={FadeInDown.duration(350)}
-            testID="missing-item-card"
+          <MissingCompoundCard
+            missing={missing}
+            missingOptions={missingOptions}
+            onBuy={handleBuy}
+          />
+        ) : null}
+
+        {/* Shelf Supplement List */}
+        {filtered.length === 0 ? (
+          <View
             style={{
-              backgroundColor: colors.secondaryFixed,
-              borderRadius: radius.lg,
-              padding: spacing.lg,
-              marginBottom: spacing.lg,
-              flexDirection: "row",
+              paddingVertical: spacing.xxxl,
               alignItems: "center",
-              gap: spacing.md,
+              justifyContent: "center",
+              gap: spacing.sm,
             }}
           >
             <View
               style={{
-                width: 46,
-                height: 46,
-                borderRadius: 14,
-                backgroundColor: colors.onSecondaryFixed + "22",
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: colors.surfaceContainerLow,
                 alignItems: "center",
                 justifyContent: "center",
+                marginBottom: spacing.xs,
               }}
             >
-              <Ionicons name="add-circle" size={24} color={colors.onSecondaryFixed} />
+              <Ionicons name="archive-outline" size={28} color={colors.textMuted} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{ color: colors.onSecondaryFixed, fontFamily: font.medium, fontSize: fontSize.xs, letterSpacing: 0.5 }}
-              >
-                RECOMMENDED · NOT IN CABINET
-              </Text>
-              <Text
-                style={{ color: colors.onSecondaryFixed, fontFamily: font.semibold, fontSize: fontSize.lg, marginTop: 2 }}
-              >
-                {COMPOUNDS[missing.canonical]?.label ?? missing.compound}
-              </Text>
-            </View>
-            <Pressable
-              testID="missing-item-buy"
-              onPress={() => {
-                tap();
-                const opt =
-                  missing.buyOptions?.[0] ??
-                  buyOptions(
-                    COMPOUNDS[missing.canonical]?.label ?? missing.compound,
-                    missing.chemicalForm,
-                    region,
-                  )[0];
-                WebBrowser.openBrowserAsync(opt.url);
-                toast.show(`Opening ${opt.merchant}…`, "info");
-              }}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                backgroundColor: colors.onSecondaryFixed,
-                borderRadius: radius.pill,
-                paddingHorizontal: 14,
-                paddingVertical: 9,
-              }}
-            >
-              <Ionicons name="cart" size={14} color={colors.secondaryFixed} />
-              <Text style={{ color: colors.secondaryFixed, fontFamily: font.semibold, fontSize: fontSize.sm }}>
-                Buy
-              </Text>
-            </Pressable>
-          </Animated.View>
-        ) : null}
-
-        {filtered.length === 0 ? (
-          <View style={{ alignItems: "center", paddingTop: spacing.xxxl, gap: spacing.md }}>
-            <View
-              style={{
-                width: 88,
-                height: 88,
-                borderRadius: 44,
-                backgroundColor: colors.surfaceTertiary,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="cube-outline" size={40} color={colors.textFaint} />
-            </View>
-            <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: fontSize.lg }}>
-              {active.length === 0 ? "Your cabinet is empty" : "No matches"}
+            <Text style={{ color: colors.text, fontFamily: font.heading, fontSize: fontSize.headlineMd, fontWeight: "700" }}>
+              {active.length === 0 ? "Your cabinet is empty" : "No matches found"}
             </Text>
             <Text
               style={{
                 color: colors.textMuted,
                 fontFamily: font.regular,
-                fontSize: fontSize.sm,
+                fontSize: fontSize.bodyMd,
                 textAlign: "center",
-                maxWidth: 260,
+                maxWidth: 280,
               }}
             >
               {active.length === 0
-                ? "Add or scan a supplement bottle to unlock product-specific dosing."
-                : "Try a different filter to see your shelf."}
+                ? "Scan a supplement bottle to auto-fill dosing and shelf tracking."
+                : "Try searching a different keyword or resetting filters."}
             </Text>
           </View>
         ) : (
           filtered.map((item, idx) => (
-            <Animated.View
+            <SupplementCard
               key={item.id}
-              entering={FadeInDown.delay(40 * idx).duration(350)}
-              style={{
-                backgroundColor: colors.surface,
-                borderRadius: radius.lg,
-                borderWidth: StyleSheet.hairlineWidth,
-                borderColor: colors.border,
-                padding: spacing.lg,
-                marginBottom: spacing.md,
+              item={item}
+              index={idx}
+              onAdjustStock={(id, delta) => adjustStock(id, delta)}
+              onRemove={(toRemove) => {
+                removeStashItem(toRemove.id);
+                toast.show(`${toRemove.name} removed`, "info");
               }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}>
-                <View
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 14,
-                    backgroundColor: colors.brandSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name={iconFor(item.canonical)} size={22} color={colors.brand} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: fontSize.xs }}>
-                    {item.brand}
-                  </Text>
-                  <Text
-                    style={{ color: colors.text, fontFamily: font.semibold, fontSize: fontSize.lg, marginTop: 1 }}
-                  >
-                    {item.name}
-                  </Text>
-                </View>
-                <Pressable
-                  testID={`delete-${item.id}`}
-                  hitSlop={8}
-                  onPress={() => {
-                    tap();
-                    removeStashItem(item.id);
-                    toast.show(`${item.name} removed`, "info");
-                  }}
-                  style={{ padding: 4 }}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.textFaint} />
-                </Pressable>
-              </View>
-
-              <View style={{ marginTop: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <QualityBadge quality={item.quality} form={item.chemicalForm} />
-                <Text style={{ color: colors.brand, fontFamily: font.monoMed, fontSize: fontSize.sm }}>
-                  {item.dosePerUnit}
-                  {doseLabel(item.doseUnit)} / {item.unit}
-                </Text>
-              </View>
-
-              {/* stock progress */}
-              <View
-                style={{
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: colors.surfaceTertiary,
-                  marginTop: spacing.md,
-                  overflow: "hidden",
-                }}
-              >
-                <View
-                  style={{
-                    height: 6,
-                    borderRadius: 3,
-                    width: `${Math.min(100, (item.stockUnits / item.unitsPerContainer) * 100)}%`,
-                    backgroundColor: isLow(item) ? colors.warning : colors.brand,
-                  }}
-                />
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginTop: spacing.md,
-                }}
-              >
-                <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: fontSize.sm }}>
-                  <Text style={{ fontFamily: font.monoMed, color: colors.text }}>{item.stockUnits}</Text> of{" "}
-                  {item.unitsPerContainer} {item.unit}s left
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                  <Stepper
-                    icon="remove"
-                    testID={`stock-minus-${item.id}`}
-                    onPress={() => {
-                      tap();
-                      adjustStock(item.id, -1);
-                    }}
-                  />
-                  <Stepper
-                    icon="add"
-                    testID={`stock-plus-${item.id}`}
-                    onPress={() => {
-                      tap();
-                      adjustStock(item.id, 1);
-                    }}
-                  />
-                </View>
-              </View>
-            </Animated.View>
+            />
           ))
         )}
       </ScrollView>
     </View>
-  );
-}
-
-function Stepper({
-  icon,
-  onPress,
-  testID,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
-  testID?: string;
-}) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      testID={testID}
-      onPress={onPress}
-      style={{
-        width: 34,
-        height: 34,
-        borderRadius: 10,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: colors.surfaceTertiary,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-      }}
-    >
-      <Ionicons name={icon} size={18} color={colors.text} />
-    </Pressable>
   );
 }

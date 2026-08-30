@@ -20,66 +20,93 @@ export function ChronoTimeline({
 }) {
   const { colors, spacing } = useTheme();
 
-  const NODE: Record<Slot, { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> =
-    {
-      morning: { icon: "sunny", color: colors.brand, bg: colors.surfaceHigh },
-      post_workout: { icon: "barbell", color: "#F59E0B", bg: colors.surfaceHigh },
-      evening: { icon: "moon", color: colors.accent, bg: colors.secondaryFixed },
-    };
+  const NODE_CONFIG: Record<
+    Slot,
+    { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }
+  > = {
+    morning: {
+      icon: "sunny",
+      color: colors.brand,
+      bg: colors.surfaceContainerHigh,
+    },
+    post_workout: {
+      icon: "barbell",
+      color: "#F59E0B",
+      bg: colors.surfaceContainerHighest,
+    },
+    evening: {
+      icon: "moon",
+      color: colors.accent,
+      bg: colors.secondaryFixed,
+    },
+  };
 
   return (
     <View style={{ position: "relative" }}>
+      {/* Continuous Vertical Connector Line */}
       {items.length > 1 ? (
         <View
           style={{
             position: "absolute",
-            left: 21,
-            top: 28,
-            bottom: 28,
+            left: 23,
+            top: 24,
+            bottom: 24,
             width: 2,
-            backgroundColor: colors.outlineVariant,
-            opacity: 0.5,
+            backgroundColor: colors.outlineVariant + "50",
+            zIndex: 1,
           }}
         />
       ) : null}
-      {items.map((item, idx) => {
-        const node = NODE[item.slot];
-        return (
-          <Animated.View
-            key={item.id}
-            entering={FadeInDown.delay(60 * idx).duration(400)}
-            style={{
-              flexDirection: "row",
-              gap: spacing.md,
-              marginBottom: idx === items.length - 1 ? 0 : spacing.lg,
-            }}
-          >
-            <View
+
+      <View style={{ gap: spacing.xl }}>
+        {items.map((item, idx) => {
+          const node = NODE_CONFIG[item.slot] || NODE_CONFIG.morning;
+          return (
+            <Animated.View
+              key={item.id}
+              entering={FadeInDown.delay(50 * idx).duration(350)}
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                marginTop: 6,
-                backgroundColor: node.bg,
-                borderWidth: 4,
-                borderColor: colors.canvas,
-                alignItems: "center",
-                justifyContent: "center",
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: spacing.lg,
+                zIndex: 2,
               }}
             >
-              <Ionicons name={node.icon} size={20} color={node.color} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ChronoCard
-                item={item}
-                taken={isTaken(item.slot, item.canonical)}
-                onToggle={() => onToggle(item)}
-                onBuy={onBuy}
-              />
-            </View>
-          </Animated.View>
-        );
-      })}
+              {/* Stitch 48x48px Circular Node with 4px Canvas Border */}
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: node.bg,
+                  borderWidth: 4,
+                  borderColor: colors.canvas,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.06,
+                  shadowRadius: 6,
+                  shadowOffset: { width: 0, height: 2 },
+                  elevation: 3,
+                }}
+              >
+                <Ionicons name={node.icon} size={20} color={node.color} />
+              </View>
+
+              {/* Event Card */}
+              <View style={{ flex: 1 }}>
+                <ChronoCard
+                  item={item}
+                  taken={isTaken(item.slot, item.canonical)}
+                  onToggle={() => onToggle(item)}
+                  onBuy={onBuy}
+                />
+              </View>
+            </Animated.View>
+          );
+        })}
+      </View>
     </View>
   );
 }

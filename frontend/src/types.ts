@@ -149,13 +149,23 @@ export interface Permissions {
   workouts: boolean;
 }
 
+export interface BiometricThresholds {
+  targetHrvMs: number;
+  minDeepSleepMin: number;
+  maxStrain: number;
+}
+
+export type TelemetrySource = "mock" | "health_connect";
+
 export interface Settings {
   themeMode: ThemeMode;
   region: Region;
   aiProvider: AIProvider;
+  telemetrySource?: TelemetrySource;
   permissions: Permissions;
   activePreset: string;
   mode: ProtocolMode;
+  thresholds?: BiometricThresholds;
 }
 
 export interface ExtractedLabel {

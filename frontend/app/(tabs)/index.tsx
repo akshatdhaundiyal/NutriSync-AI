@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -45,7 +45,7 @@ function dateLabel(): string {
 }
 
 export default function DashboardScreen() {
-  const { colors, font, fontSize, spacing } = useTheme();
+  const { colors, font, fontSize, spacing, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
@@ -72,20 +72,16 @@ export default function DashboardScreen() {
 
   if (!hydrated || !protocol || !readiness || !today) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.canvas }}>
-        <ScreenHeader title="Today" subtitle={dateLabel()} />
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <ActivityIndicator color={colors.brand} />
-          <Text style={{ color: colors.textMuted, fontFamily: font.medium }}>
-            Computing your biometric protocol…
-          </Text>
-        </View>
+      <View style={{ flex: 1, backgroundColor: colors.canvas, alignItems: "center", justifyContent: "center", gap: 12 }}>
+        <ActivityIndicator color={colors.brand} />
+        <Text style={{ color: colors.textMuted, fontFamily: font.medium }}>
+          Computing your biometric protocol…
+        </Text>
       </View>
     );
   }
 
   const activeCount = protocol.items.length;
-
   const guardrails = computeGuardrails(protocol.items);
   const streak = computeStreak(adherenceDates, todayKey());
   const best = computeBestStreak(adherenceDates);
@@ -106,85 +102,139 @@ export default function DashboardScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <ScreenHeader
-        title="Today"
-        subtitle={dateLabel()}
-        right={
-          <Pressable
-            testID="header-sync"
-            onPress={async () => {
-              tap();
-              await reanalyze();
-              toast.show("Protocol re-analyzed");
-            }}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.surfaceTertiary,
-            }}
-          >
-            <Ionicons name="sync" size={18} color={colors.brand} />
-          </Pressable>
-        }
-      />
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          padding: spacing.lg,
+          paddingHorizontal: spacing.containerMargin,
+          paddingTop: spacing.sm,
           paddingBottom: spacing.xxxl * 2 + insets.bottom,
+          gap: spacing.sectionMargin,
         }}
       >
-        <Animated.View entering={FadeInDown.duration(400)}>
-          <Card style={{ alignItems: "center" }}>
-            <ReadinessRing score={readiness.score} state={readiness.state} />
+        {/* Section 1: Hero Readiness Ring & Stitch Health Metric Pills */}
+        <Animated.View
+          entering={FadeInDown.duration(400)}
+          style={{ alignItems: "center", justifyContent: "center" }}
+        >
+          <ReadinessRing score={readiness.score} state={readiness.state} />
+
+          {/* Stitch Health Metric Pills */}
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: spacing.innerGap,
+              marginTop: spacing.xl,
+              justifyContent: "center",
+            }}
+          >
+            {/* Deep Sleep Pill */}
             <View
               style={{
                 flexDirection: "row",
-                flexWrap: "wrap",
-                gap: spacing.sm,
-                marginTop: spacing.lg,
-                justifyContent: "center",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: colors.secondaryFixed,
+                borderRadius: radius.pill,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.outlineVariant + "60",
               }}
             >
-              <Pill
-                icon="moon"
-                label={`Deep Sleep ${fmtSleep(today.deepSleepMin)} (${readiness.deepSleepDelta > 0 ? "+" : ""}${readiness.deepSleepDelta}%)`}
-                color={colors.onSecondaryFixed}
-                bg={colors.secondaryFixed}
-              />
-              <Pill
-                icon="heart"
-                label={`HRV ${today.hrvMs}ms (${readiness.hrvDelta > 0 ? "+" : ""}${readiness.hrvDelta}%)`}
-                color={readiness.hrvDelta < 0 ? colors.onErrorContainer : colors.brand}
-                bg={readiness.hrvDelta < 0 ? colors.errorContainer : colors.brandSoft}
-              />
-              <Pill
-                icon="flame"
-                label={`Strain ${today.strain}`}
-                color={colors.brand}
-                bg={colors.brandSoft}
-              />
+              <Ionicons name="bed" size={14} color={colors.onSecondaryFixed} />
+              <Text
+                style={{
+                  color: colors.onSecondaryFixed,
+                  fontFamily: font.medium,
+                  fontSize: fontSize.labelSm,
+                }}
+              >
+                Deep Sleep: {fmtSleep(today.deepSleepMin)} ({readiness.deepSleepDelta > 0 ? "+" : ""}{readiness.deepSleepDelta}%)
+              </Text>
             </View>
-          </Card>
+
+            {/* HRV Pill */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: readiness.hrvDelta < 0 ? colors.errorContainer : colors.primaryContainer,
+                borderRadius: radius.pill,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.outlineVariant + "60",
+              }}
+            >
+              <Ionicons
+                name="pulse"
+                size={14}
+                color={readiness.hrvDelta < 0 ? colors.onErrorContainer : colors.onPrimaryContainer}
+              />
+              <Text
+                style={{
+                  color: readiness.hrvDelta < 0 ? colors.onErrorContainer : colors.onPrimaryContainer,
+                  fontFamily: font.medium,
+                  fontSize: fontSize.labelSm,
+                }}
+              >
+                HRV: {today.hrvMs}ms ({readiness.hrvDelta > 0 ? "+" : ""}{readiness.hrvDelta}%)
+              </Text>
+            </View>
+
+            {/* Daily Strain Pill */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: colors.surfaceContainerHigh,
+                borderRadius: radius.pill,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.outlineVariant + "60",
+              }}
+            >
+              <Ionicons name="flame" size={14} color={colors.brand} />
+              <Text
+                style={{
+                  color: colors.text,
+                  fontFamily: font.medium,
+                  fontSize: fontSize.labelSm,
+                }}
+              >
+                Strain: {today.strain}
+              </Text>
+            </View>
+          </View>
         </Animated.View>
 
-        <View style={{ marginTop: spacing.lg }}>
+        {/* Section 2: Mode Selector */}
+        <View style={{ gap: spacing.xs }}>
+          <Text
+            style={{
+              color: colors.textMuted,
+              fontFamily: font.heading,
+              fontSize: fontSize.labelSm,
+              letterSpacing: 0.5,
+              textTransform: "uppercase",
+              marginBottom: 4,
+            }}
+          >
+            Protocol Context Mode
+          </Text>
           <ModeSelector />
         </View>
 
-        <View style={{ marginTop: spacing.md }}>
-          <StreakCard streak={streak} best={best} todayComplete={todayComplete} />
-        </View>
+        {/* Section 3: Adherence Streak */}
+        <StreakCard streak={streak} best={best} todayComplete={todayComplete} />
 
+        {/* Section 4: Stress Anomaly Banner */}
         {readiness.state === "stress" ? (
-          <Animated.View
-            entering={FadeInDown.delay(100).duration(400)}
-            style={{ marginTop: spacing.lg }}
-          >
+          <Animated.View entering={FadeInDown.delay(100).duration(350)}>
             <StressBanner
               onStart={() => {
                 impact();
@@ -194,106 +244,144 @@ export default function DashboardScreen() {
           </Animated.View>
         ) : null}
 
-        {guardrails.length > 0 ? (
-          <View style={{ marginTop: spacing.lg }}>
-            <GuardrailCard warnings={guardrails} />
-          </View>
-        ) : null}
-
+        {/* Section 5: Guardrails, Low Stock & Bloodwork */}
+        {guardrails.length > 0 ? <GuardrailCard warnings={guardrails} /> : null}
         {lowEntries.length > 0 ? (
-          <View style={{ marginTop: spacing.lg }}>
-            <LowStockCard
-              items={lowEntries}
-              onReorder={(url, m) => {
-                WebBrowser.openBrowserAsync(url);
-                toast.show(`Opening ${m}…`, "info");
-              }}
-            />
-          </View>
+          <LowStockCard
+            items={lowEntries}
+            onReorder={(url, m) => {
+              WebBrowser.openBrowserAsync(url);
+              toast.show(`Opening ${m}…`, "info");
+            }}
+          />
         ) : null}
-
         {bloodMarkers.length > 0 ? (
-          <View style={{ marginTop: spacing.lg }}>
-            <BloodworkCard
-              markers={bloodMarkers}
-              onClear={() => {
-                clearBloodMarkers();
-                toast.show("Bloodwork cleared", "info");
-              }}
-            />
-          </View>
+          <BloodworkCard
+            markers={bloodMarkers}
+            onClear={() => {
+              clearBloodMarkers();
+              toast.show("Bloodwork cleared", "info");
+            }}
+          />
         ) : null}
 
-        <SectionTitle
-          title="Today's Chrono-Protocol"
-          right={
-            <Pill
-              label={`${activeCount}/3 active`}
-              color={colors.textMuted}
-              bg={colors.surfaceTertiary}
-              icon="shield-checkmark"
-            />
-          }
-        />
-
-        {protocol.zeroPill ? (
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <Card testID="zero-pill-card" style={{ alignItems: "center", paddingVertical: spacing.xl }}>
-              <View
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 30,
-                  backgroundColor: colors.brandSoft,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="leaf" size={28} color={colors.brand} />
-              </View>
-              <Text
-                style={{
-                  color: colors.text,
-                  fontFamily: font.semibold,
-                  fontSize: fontSize.lg,
-                  marginTop: spacing.md,
-                  textAlign: "center",
-                }}
-              >
-                System Balanced — Whole Food Focus
-              </Text>
+        {/* Section 6: Today's Chrono-Protocol Timeline */}
+        <View style={{ gap: spacing.stackGap }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text
+              style={{
+                color: colors.text,
+                fontFamily: font.heading,
+                fontSize: fontSize.headlineMd,
+                fontWeight: "700",
+              }}
+            >
+              Today's Chrono-Protocol
+            </Text>
+            <View
+              style={{
+                backgroundColor: colors.surfaceContainerHigh,
+                borderRadius: radius.pill,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.outlineVariant + "40",
+              }}
+            >
               <Text
                 style={{
                   color: colors.textMuted,
-                  fontFamily: font.regular,
-                  fontSize: fontSize.sm,
-                  lineHeight: 20,
-                  textAlign: "center",
-                  marginTop: spacing.sm,
+                  fontFamily: font.semibold,
+                  fontSize: fontSize.labelSm,
                 }}
               >
-                {protocol.wholeFoodNote}
+                {activeCount}/3 active
               </Text>
-            </Card>
-          </Animated.View>
-        ) : (
-          <ChronoTimeline
-            items={protocol.items}
-            isTaken={isTaken}
-            onToggle={(item) => {
-              if (isTaken(item.slot, item.canonical)) tap();
-              else success();
-              toggleIntake(item.slot, item.canonical);
-            }}
-            onBuy={(url, merchant) => {
-              tap();
-              WebBrowser.openBrowserAsync(url);
-              toast.show(`Opening ${merchant}…`, "info");
-            }}
-          />
-        )}
+            </View>
+          </View>
 
-        <View style={{ marginTop: spacing.md }}>
+          {protocol.zeroPill ? (
+            <Animated.View entering={FadeInDown.duration(400)}>
+              <View
+                testID="zero-pill-card"
+                style={{
+                  backgroundColor: colors.surfaceContainerLowest,
+                  borderRadius: radius.lg,
+                  padding: spacing.cardPadding,
+                  alignItems: "center",
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: colors.outlineVariant + "40",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.04,
+                  shadowRadius: 10,
+                  shadowOffset: { width: 0, height: 3 },
+                  elevation: 2,
+                }}
+              >
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: colors.primaryContainer,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="leaf" size={26} color={colors.onPrimaryContainer} />
+                </View>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontFamily: font.heading,
+                    fontSize: fontSize.bodyLg,
+                    fontWeight: "700",
+                    marginTop: spacing.md,
+                    textAlign: "center",
+                  }}
+                >
+                  System Balanced — Whole Food Focus
+                </Text>
+                <Text
+                  style={{
+                    color: colors.textMuted,
+                    fontFamily: font.regular,
+                    fontSize: fontSize.sm,
+                    lineHeight: 20,
+                    textAlign: "center",
+                    marginTop: spacing.sm,
+                  }}
+                >
+                  {protocol.wholeFoodNote}
+                </Text>
+              </View>
+            </Animated.View>
+          ) : (
+            <ChronoTimeline
+              items={protocol.items}
+              isTaken={isTaken}
+              onToggle={(item) => {
+                if (isTaken(item.slot, item.canonical)) tap();
+                else success();
+                toggleIntake(item.slot, item.canonical);
+              }}
+              onBuy={(url, merchant) => {
+                tap();
+                WebBrowser.openBrowserAsync(url);
+                toast.show(`Opening ${merchant}…`, "info");
+              }}
+            />
+          )}
+        </View>
+
+        {/* Section 7: Sync & Re-Analyze Action */}
+        <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
           <AppButton
             testID="sync-reanalyze"
             label="Sync & Re-Analyze"
@@ -306,19 +394,17 @@ export default function DashboardScreen() {
               toast.show("Protocol re-analyzed");
             }}
           />
+          <Text
+            style={{
+              color: colors.textFaint,
+              fontFamily: font.regular,
+              fontSize: fontSize.xs,
+              textAlign: "center",
+            }}
+          >
+            Generated on-device · {protocol.generatedBy}
+          </Text>
         </View>
-
-        <Text
-          style={{
-            color: colors.textFaint,
-            fontFamily: font.regular,
-            fontSize: fontSize.xs,
-            textAlign: "center",
-            marginTop: spacing.md,
-          }}
-        >
-          Generated on-device · {protocol.generatedBy}
-        </Text>
       </ScrollView>
     </View>
   );

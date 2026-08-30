@@ -18,6 +18,7 @@ import { storage } from "@/src/utils/storage";
 import {
   AIProvider,
   Baselines,
+  BiometricThresholds,
   BloodMarker,
   ExtractedLabel,
   IntakeLog,
@@ -29,8 +30,10 @@ import {
   Slot,
   StashItem,
   TelemetryDay,
+  TelemetrySource,
   ThemeMode,
 } from "@/src/types";
+import { syncHealthConnect } from "@/src/services/healthConnect";
 
 const SETTINGS_KEY = "settings:v2";
 
@@ -38,9 +41,15 @@ const DEFAULT_SETTINGS: Settings = {
   themeMode: "system",
   region: "US",
   aiProvider: "mock",
+  telemetrySource: "mock",
   permissions: { sleep: false, hrv: false, workouts: false },
   activePreset: "heavy_leg_day",
   mode: "auto",
+  thresholds: {
+    targetHrvMs: 65,
+    minDeepSleepMin: 75,
+    maxStrain: 15.0,
+  },
 };
 
 const EU_CODES = new Set([
@@ -89,8 +98,10 @@ interface AppState {
   setThemeMode: (m: ThemeMode) => Promise<void>;
   setRegion: (r: Region) => Promise<void>;
   setProvider: (p: AIProvider) => Promise<void>;
+  setTelemetrySource: (source: TelemetrySource) => Promise<string>;
   setPermission: (k: keyof Settings["permissions"], v: boolean) => Promise<void>;
   setMode: (m: ProtocolMode) => Promise<void>;
+  setThresholds: (t: BiometricThresholds) => Promise<void>;
   applyPreset: (id: string) => Promise<void>;
   addStashItem: (item: StashItem) => Promise<void>;
   updateStashItem: (item: StashItem) => Promise<void>;
@@ -101,6 +112,8 @@ interface AppState {
   scanLabel: (base64: string, mime: string) => Promise<ExtractedLabel>;
   importBloodTest: (base64: string, mime: string) => Promise<BloodMarker[]>;
   clearBloodMarkers: () => Promise<void>;
+  exportBackup: () => string;
+  importBackup: (jsonStr: string) => Promise<boolean>;
 }
 
 async function persistSettings(s: Settings) {
@@ -164,89 +177,124 @@ export const useStore = create<AppState>((set, get) => ({
       await persistSettings(settings);
     }
 
-    let stash = await getCollection<StashItem[] | null>("stash", null);
-    if (!stash) {
-      stash = DEFAULT_STASH;
-      await setCollection("stash", stash);
-    }
+    const stash = await getCollection<StashItem[]>("stash", DEFAULT_STASH);
+    const telemetry = await getCollection<TelemetryDay[]>(
+      "telemetry",
+      buildTelemetry(settings.activePreset),
+    );
+    const intake = await getCollection<IntakeLog[]>("intake", []);
+    const adherenceDates = await getCollection<string[]>("adherence", [
+      "2026-08-28",
+      "2026-08-29",
+    ]);
+    const bloodMarkers = await getCollection<BloodMarker[]>("bloodMarkers", []);
 
-    let telemetry = await getCollection<TelemetryDay[] | null>("telemetry", null);
-    if (!telemetry || telemetry.length === 0) {
-      telemetry = buildTelemetry(settings.activePreset);
-      await setCollection("telemetry", telemetry);
-    }
-
-    const intake = (await getCollection<IntakeLog[]>("intake", [])) || [];
-    const adherenceDates = (await getCollection<string[]>("adherence", [])) || [];
-    const bloodMarkers =
-      (await getCollection<BloodMarker[]>("bloodMarkers", [])) || [];
     const keys = await loadKeys();
 
     set({
+      hydrated: true,
       settings,
       stash,
       telemetry,
       intake,
+      keys,
       adherenceDates,
       bloodMarkers,
-      keys,
-      hydrated: true,
     });
+
     await get().reanalyze();
   },
 
   reanalyze: async () => {
+    const { telemetry, stash, settings, keys, bloodMarkers } = get();
+    if (telemetry.length === 0) return;
+
     set({ generating: true });
-    const { telemetry, settings, stash, bloodMarkers } = get();
-    const date = todayISO();
-    const today = telemetry[telemetry.length - 1];
-    const baselines = computeBaselines(telemetry, today.date);
-    const readiness = computeReadiness(today, baselines);
-    const keys = await loadKeys();
-    const deficiencies = deficienciesFrom(bloodMarkers);
 
-    const protocol: Protocol = await generateProtocol({
-      provider: settings.aiProvider,
-      today,
-      baselines,
-      readiness,
-      stash,
-      region: settings.region,
-      mode: settings.mode,
-      deficiencies,
-      keys,
-      date,
-    });
+    try {
+      const today = telemetry[telemetry.length - 1];
+      const baselines = computeBaselines(telemetry, today.date);
+      const readiness = computeReadiness(today, baselines);
 
-    const adherenceDates = computeAdherenceDates(
-      protocol,
-      get().intake,
-      get().adherenceDates,
-      date,
-    );
+      const activeStash = stash.filter((s) => !s.deletedAt);
+      const labDeficiencies = deficienciesFrom(bloodMarkers);
 
-    set({ baselines, readiness, protocol, generating: false, keys, adherenceDates });
-    await setCollection("adherence", adherenceDates);
+      const protocol = await generateProtocol({
+        today,
+        baselines,
+        readiness,
+        stash: activeStash,
+        region: settings.region,
+        mode: settings.mode,
+        provider: settings.aiProvider,
+        keys,
+        deficiencies: labDeficiencies,
+        date: today.date,
+      });
+
+      const day = todayISO();
+      const adherenceDates = computeAdherenceDates(
+        protocol,
+        get().intake,
+        get().adherenceDates,
+        day,
+      );
+
+      set({
+        baselines,
+        readiness,
+        protocol,
+        adherenceDates,
+        generating: false,
+      });
+
+      await setCollection("adherence", adherenceDates);
+    } catch (err) {
+      console.warn("reanalyze error:", err);
+      set({ generating: false });
+    }
   },
 
-  setThemeMode: async (themeMode) => {
-    const settings = { ...get().settings, themeMode };
+  setThemeMode: async (m) => {
+    const settings = { ...get().settings, themeMode: m };
     set({ settings });
     await persistSettings(settings);
   },
 
-  setRegion: async (region) => {
-    const settings = { ...get().settings, region };
+  setRegion: async (r) => {
+    const settings = { ...get().settings, region: r };
     set({ settings });
     await persistSettings(settings);
     await get().reanalyze();
   },
 
-  setProvider: async (aiProvider) => {
-    const settings = { ...get().settings, aiProvider };
+  setProvider: async (p) => {
+    const settings = { ...get().settings, aiProvider: p };
     set({ settings });
     await persistSettings(settings);
     await get().reanalyze();
+  },
+
+  setTelemetrySource: async (source) => {
+    const settings = { ...get().settings, telemetrySource: source };
+    set({ settings });
+    await persistSettings(settings);
+
+    if (source === "health_connect") {
+      const res = await syncHealthConnect();
+      if (res.telemetry && res.telemetry.length > 0) {
+        set({ telemetry: res.telemetry });
+        await setCollection("telemetry", res.telemetry);
+      }
+      await get().reanalyze();
+      return res.message;
+    } else {
+      const telemetry = buildTelemetry(settings.activePreset);
+      set({ telemetry });
+      await setCollection("telemetry", telemetry);
+      await get().reanalyze();
+      return "Switched to Mock / Telemetry Simulator";
+    }
   },
 
   setPermission: async (k, v) => {
@@ -258,8 +306,15 @@ export const useStore = create<AppState>((set, get) => ({
     await persistSettings(settings);
   },
 
-  setMode: async (mode) => {
-    const settings = { ...get().settings, mode };
+  setMode: async (m) => {
+    const settings = { ...get().settings, mode: m };
+    set({ settings });
+    await persistSettings(settings);
+    await get().reanalyze();
+  },
+
+  setThresholds: async (thresholds) => {
+    const settings = { ...get().settings, thresholds };
     set({ settings });
     await persistSettings(settings);
     await get().reanalyze();
@@ -268,9 +323,8 @@ export const useStore = create<AppState>((set, get) => ({
   applyPreset: async (id) => {
     const telemetry = buildTelemetry(id);
     const settings = { ...get().settings, activePreset: id };
-    set({ telemetry, settings, intake: [] });
+    set({ telemetry, settings });
     await setCollection("telemetry", telemetry);
-    await setCollection("intake", []);
     await persistSettings(settings);
     await get().reanalyze();
   },
@@ -290,7 +344,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   removeStashItem: async (id) => {
-    // soft delete
     const stash = get().stash.map((s) =>
       s.id === id ? { ...s, deletedAt: new Date().toISOString() } : s,
     );
@@ -394,5 +447,58 @@ export const useStore = create<AppState>((set, get) => ({
     set({ bloodMarkers: [] });
     await setCollection("bloodMarkers", []);
     await get().reanalyze();
+  },
+
+  exportBackup: () => {
+    const { settings, stash, telemetry, intake, adherenceDates, bloodMarkers } = get();
+    const payload = {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      settings,
+      stash,
+      telemetry,
+      intake,
+      adherenceDates,
+      bloodMarkers,
+    };
+    return JSON.stringify(payload, null, 2);
+  },
+
+  importBackup: async (jsonStr: string) => {
+    try {
+      const data = JSON.parse(jsonStr);
+      if (!data || typeof data !== "object") return false;
+
+      if (Array.isArray(data.stash)) {
+        await setCollection("stash", data.stash);
+        set({ stash: data.stash });
+      }
+      if (Array.isArray(data.telemetry)) {
+        await setCollection("telemetry", data.telemetry);
+        set({ telemetry: data.telemetry });
+      }
+      if (Array.isArray(data.intake)) {
+        await setCollection("intake", data.intake);
+        set({ intake: data.intake });
+      }
+      if (Array.isArray(data.adherenceDates)) {
+        await setCollection("adherence", data.adherenceDates);
+        set({ adherenceDates: data.adherenceDates });
+      }
+      if (Array.isArray(data.bloodMarkers)) {
+        await setCollection("bloodMarkers", data.bloodMarkers);
+        set({ bloodMarkers: data.bloodMarkers });
+      }
+      if (data.settings && typeof data.settings === "object") {
+        await persistSettings(data.settings);
+        set({ settings: data.settings });
+      }
+
+      await get().reanalyze();
+      return true;
+    } catch (err) {
+      console.warn("importBackup error:", err);
+      return false;
+    }
   },
 }));

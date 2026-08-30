@@ -1,18 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Dimensions, ScrollView, Text, View } from "react-native";
+import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LineChart } from "@/src/components/LineChart";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { Card, SectionTitle, Segmented } from "@/src/components/ui";
+import { Segmented } from "@/src/components/ui";
 import { useStore } from "@/src/store/useStore";
 import { useTheme } from "@/src/theme/useTheme";
 import { tap } from "@/src/utils/haptics";
 
 export default function TrendsScreen() {
-  const { colors, font, fontSize, spacing } = useTheme();
+  const { colors, font, fontSize, spacing, radius } = useTheme();
   const insets = useSafeAreaInsets();
 
   const telemetry = useStore((s) => s.telemetry);
@@ -25,7 +25,7 @@ export default function TrendsScreen() {
   const color = metric === "deep" ? colors.brand : colors.accent;
   const unit = metric === "deep" ? "m" : "ms";
 
-  const width = Dimensions.get("window").width - spacing.lg * 2 - spacing.lg * 2;
+  const width = Dimensions.get("window").width - spacing.containerMargin * 2 - spacing.cardPadding * 2;
   const current = data[data.length - 1] ?? 0;
   const avg = data.length ? Math.round(data.reduce((a, b) => a + b, 0) / data.length) : 0;
   const delta = avg ? Math.round(((current - avg) / avg) * 100) : 0;
@@ -40,13 +40,13 @@ export default function TrendsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <ScreenHeader title="Trends" subtitle="N=1 · 14-day correlation" />
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          padding: spacing.lg,
-          paddingBottom: spacing.xxxl + insets.bottom,
+          paddingHorizontal: spacing.containerMargin,
+          paddingTop: spacing.sm,
+          paddingBottom: spacing.xxxl * 2 + insets.bottom,
+          gap: spacing.stackGap,
         }}
       >
         <Segmented
@@ -62,8 +62,22 @@ export default function TrendsScreen() {
           ]}
         />
 
-        <Animated.View entering={FadeInDown.duration(400)} style={{ marginTop: spacing.lg }}>
-          <Card>
+        {/* 14-Day Dual Metric Chart Card */}
+        <Animated.View entering={FadeInDown.duration(400)}>
+          <View
+            style={{
+              backgroundColor: colors.surfaceContainerLowest,
+              borderRadius: radius.DEFAULT,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.outlineVariant + "50",
+              padding: spacing.cardPadding,
+              shadowColor: "#000",
+              shadowOpacity: 0.04,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 1,
+            }}
+          >
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md }}>
               <StatBlock label="Today" value={`${current}${unit}`} color={colors.text} />
               <StatBlock label="14-day avg" value={`${avg}${unit}`} color={colors.textMuted} />
@@ -74,33 +88,57 @@ export default function TrendsScreen() {
               />
             </View>
             <LineChart width={width} data={data} markers={markers} color={color} unit={unit} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.sm }}>
-              <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: color }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
               <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: fontSize.xs }}>
-                Filled dots = days you took your protocol
+                Filled markers = days protocol was consumed
               </Text>
             </View>
-          </Card>
+          </View>
         </Animated.View>
 
-        <SectionTitle title="Efficacy Insight" />
-        <Animated.View entering={FadeInDown.delay(120).duration(400)}>
-          <Card>
+        {/* Efficacy Insight Section */}
+        <Text
+          style={{
+            color: colors.text,
+            fontFamily: font.heading,
+            fontSize: fontSize.headlineMd,
+            fontWeight: "700",
+          }}
+        >
+          Efficacy Insight
+        </Text>
+
+        <Animated.View entering={FadeInDown.delay(100).duration(400)}>
+          <View
+            style={{
+              backgroundColor: colors.surfaceContainerLowest,
+              borderRadius: radius.DEFAULT,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.outlineVariant + "50",
+              padding: spacing.cardPadding,
+              shadowColor: "#000",
+              shadowOpacity: 0.04,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 1,
+            }}
+          >
             <View style={{ flexDirection: "row", gap: spacing.md, alignItems: "flex-start" }}>
               <View
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  backgroundColor: colors.brandSoft,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  backgroundColor: colors.primaryContainer,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="sparkles" size={20} color={colors.brand} />
+                <Ionicons name="sparkles" size={22} color={colors.onPrimaryContainer} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: fontSize.md }}>
+                <Text style={{ color: colors.text, fontFamily: font.heading, fontSize: fontSize.bodyLg, fontWeight: "700" }}>
                   {lift > 0
                     ? `+${lift}${unit} ${metricName} on stack days`
                     : `${metricName} steady across the window`}
@@ -109,31 +147,41 @@ export default function TrendsScreen() {
                   style={{
                     color: colors.textMuted,
                     fontFamily: font.regular,
-                    fontSize: fontSize.sm,
-                    lineHeight: 20,
+                    fontSize: fontSize.bodyMd,
+                    lineHeight: 22,
                     marginTop: 4,
                   }}
                 >
                   {lift > 0
                     ? `On days you logged your protocol, ${metricName.toLowerCase()} averaged ${Math.abs(lift)}${unit} higher than unsupplemented days.`
-                    : `Not enough separation yet — keep logging intake to sharpen your personal correlation.`}
+                    : `Not enough separation yet — keep logging intake to sharpen your personal N=1 correlation.`}
                 </Text>
                 {baselines ? (
-                  <Text
+                  <View
                     style={{
-                      color: colors.textFaint,
-                      fontFamily: font.mono,
-                      fontSize: fontSize.xs,
-                      marginTop: spacing.sm,
+                      marginTop: spacing.md,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: radius.sm,
+                      backgroundColor: colors.surfaceContainerLow,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: colors.outlineVariant + "40",
                     }}
                   >
-                    7-day baseline · sleep {baselines.deepSleepMin}m · HRV {baselines.hrvMs}ms · RHR{" "}
-                    {baselines.restingHr}
-                  </Text>
+                    <Text
+                      style={{
+                        color: colors.textMuted,
+                        fontFamily: font.mono,
+                        fontSize: fontSize.xs,
+                      }}
+                    >
+                      7-day baseline · sleep {baselines.deepSleepMin}m · HRV {baselines.hrvMs}ms · RHR {baselines.restingHr}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
             </View>
-          </Card>
+          </View>
         </Animated.View>
       </ScrollView>
     </View>
@@ -152,10 +200,10 @@ function StatBlock({
   const { colors, font, fontSize } = useTheme();
   return (
     <View>
-      <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: fontSize.xs }}>
+      <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: fontSize.labelSm }}>
         {label}
       </Text>
-      <Text style={{ color, fontFamily: font.monoMed, fontSize: fontSize.xl, marginTop: 2 }}>
+      <Text style={{ color, fontFamily: font.monoMed, fontSize: fontSize.xl, marginTop: 2, fontWeight: "700" }}>
         {value}
       </Text>
     </View>

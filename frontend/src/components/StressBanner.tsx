@@ -1,77 +1,65 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useTheme } from "@/src/theme/useTheme";
 
 export function StressBanner({ onStart }: { onStart: () => void }) {
   const { colors, font, fontSize, radius, spacing } = useTheme();
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1000, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.1] });
 
   return (
     <View
       testID="stress-banner"
       style={{
-        backgroundColor: colors.dangerSoft,
-        borderRadius: radius.lg,
+        backgroundColor: colors.errorContainer,
+        borderRadius: radius.DEFAULT,
+        padding: spacing.cardPadding,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.danger + "55",
-        padding: spacing.lg,
+        borderColor: colors.outlineVariant + "80",
+        shadowColor: "#000",
+        shadowOpacity: 0.04,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 2,
+        gap: spacing.md,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-        <View style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
-          <Animated.View
-            style={{
-              position: "absolute",
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: colors.danger,
-              opacity,
-              transform: [{ scale }],
-            }}
-          />
-          <View
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.danger,
-            }}
-          >
-            <Ionicons name="pulse" size={18} color="#fff" />
-          </View>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.innerGap }}>
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.onTertiaryContainer + "1A",
+            alignItems: "center",
+            justifyContent: "center",
+            marginTop: 2,
+          }}
+        >
+          <Ionicons name="warning" size={20} color={colors.tertiary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: fontSize.md }}>
-            Acute Stress Interdiction
+          <Text
+            style={{
+              color: colors.onErrorContainer,
+              fontFamily: font.semibold,
+              fontSize: fontSize.labelMd,
+              fontWeight: "700",
+            }}
+          >
+            Stress Anomaly Detected
           </Text>
           <Text
             style={{
-              color: colors.textMuted,
+              color: colors.onErrorContainer,
               fontFamily: font.regular,
               fontSize: fontSize.sm,
-              marginTop: 2,
+              marginTop: 3,
+              opacity: 0.9,
+              lineHeight: 18,
             }}
           >
-            Sedentary sympathetic spike detected. Down-regulate before dosing.
+            HRV dropped significantly below baseline. Down-regulate before dosing.
           </Text>
         </View>
       </View>
@@ -80,20 +68,27 @@ export function StressBanner({ onStart }: { onStart: () => void }) {
         testID="start-breath-pacer"
         onPress={onStart}
         style={({ pressed }) => ({
-          marginTop: spacing.md,
-          backgroundColor: colors.danger,
-          borderRadius: radius.md,
-          paddingVertical: 12,
+          backgroundColor: colors.tertiary,
+          borderRadius: radius.pill,
+          paddingVertical: 10,
+          paddingHorizontal: 16,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
-          gap: 8,
+          gap: 6,
+          alignSelf: "flex-start",
           opacity: pressed ? 0.85 : 1,
         })}
       >
-        <Ionicons name="leaf" size={16} color="#fff" />
-        <Text style={{ color: "#fff", fontFamily: font.semibold, fontSize: fontSize.base }}>
-          Start 2-min Cyclic Sighing
+        <Ionicons name="leaf" size={14} color={colors.onTertiary} />
+        <Text
+          style={{
+            color: colors.onTertiary,
+            fontFamily: font.semibold,
+            fontSize: fontSize.labelMd,
+          }}
+        >
+          2-Min Cyclic Sighing
         </Text>
       </Pressable>
     </View>

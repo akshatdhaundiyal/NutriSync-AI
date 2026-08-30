@@ -1,12 +1,21 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================================
+# NutriSync AI — Root .gitignore
+# ============================================================
+# See https://help.github.com/articles/ignoring-files/
 
-# IDE and editors
+# ────────────────────────────────────────────────────────────
+# IDE & Editors
+# ────────────────────────────────────────────────────────────
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
+# ────────────────────────────────────────────────────────────
 # Dependencies
+# ────────────────────────────────────────────────────────────
 node_modules/
-/node_modules
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -16,55 +25,112 @@ node_modules/
 !.yarn/releases
 !.yarn/versions
 
-# Testing
-/coverage
-
-# Next.js
-/.next/
-/out/
-next-env.d.ts
-*.tsbuildinfo
-
-# Production builds
-/build
-dist/
-dist
-
-# Environment files (comprehensive coverage)
-
+# ────────────────────────────────────────────────────────────
+# Environment & Secrets
+# ────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.env
+*.key
+*.pem
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+*.keystore
+credentials.json
 *token.json*
 *credentials.json*
+.credentials
 
-# Logs and debug files
+# ────────────────────────────────────────────────────────────
+# Python (backend)
+# ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+venv/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+
+# ────────────────────────────────────────────────────────────
+# Expo / React Native (frontend)
+# ────────────────────────────────────────────────────────────
+.expo/
+.metro-cache/
+.metro-health-check*
+web-build/
+expo-env.d.ts
+*.tsbuildinfo
+*.jsbundle
+
+# ────────────────────────────────────────────────────────────
+# Android Native Build
+# ────────────────────────────────────────────────────────────
+*.apk
+*.aab
+*.dex
+*.class
+*.hprof
+local.properties
+frontend/android/build/
+frontend/android/.gradle/
+frontend/android/.cxx/
+frontend/android/app/build/
+android-sdk/
+
+# EAS Build
+frontend/eas-build-*/
+
+# ────────────────────────────────────────────────────────────
+# iOS (future-proofing)
+# ────────────────────────────────────────────────────────────
+*.xcworkspace
+*.xcodeproj
+Pods/
+frontend/ios/build/
+
+# ────────────────────────────────────────────────────────────
+# Build & Production Outputs
+# ────────────────────────────────────────────────────────────
+/build
+dist/
+/out/
+/.next/
+next-env.d.ts
+
+# ────────────────────────────────────────────────────────────
+# Testing & Coverage
+# ────────────────────────────────────────────────────────────
+/coverage
+*.lcov
+
+# ────────────────────────────────────────────────────────────
+# Logs & Debug
+# ────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dump.rdb
 
-# System files
+# ────────────────────────────────────────────────────────────
+# OS Generated Files
+# ────────────────────────────────────────────────────────────
 .DS_Store
-*.pem
+Thumbs.db
+Desktop.ini
+ehthumbs.db
 
-# Python
-__pycache__/
-*pyc*
-venv/
-.venv/
-
-# Development tools
-chainlit.md
-.chainlit
-.ipynb_checkpoints/
-.ac
-
-# Deployment
-.vercel
-
-# Data and databases
-agenthub/agents/youtube/db
-
-# Archive files and large assets
+# ────────────────────────────────────────────────────────────
+# Archives & Large Binaries
+# ────────────────────────────────────────────────────────────
 **/*.zip
 **/*.tar.gz
 **/*.tar
@@ -73,16 +139,23 @@ agenthub/agents/youtube/db
 *.deb
 *.dylib
 
-# Build caches
+# ────────────────────────────────────────────────────────────
+# Build Caches
+# ────────────────────────────────────────────────────────────
 .cache/
+.kotlin/
 
+# ────────────────────────────────────────────────────────────
+# Deployment
+# ────────────────────────────────────────────────────────────
+.vercel
+
+# ────────────────────────────────────────────────────────────
+# Project-specific
+# ────────────────────────────────────────────────────────────
 memory/test_credentials.md
-
-# Mobile development
-android-sdk/
-.env
-.env.*
-*.env
-credentials.json
-*.key
-.credentials
+chainlit.md
+.chainlit
+.ipynb_checkpoints/
+.ac
+.emergent/

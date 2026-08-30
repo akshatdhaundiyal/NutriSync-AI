@@ -11,21 +11,33 @@ from pathlib import Path
 from pydantic import BaseModel
 from typing import Any, Dict, Optional
 
-from emergentintegrations.llm.chat import (
-    LlmChat,
-    UserMessage,
-    ImageContent,
-    TextDelta,
-    StreamDone,
-)
+try:
+    from emergentintegrations.llm.chat import (
+        LlmChat,
+        UserMessage,
+        ImageContent,
+        TextDelta,
+        StreamDone,
+    )
+except ImportError:
+    LlmChat = None
+    UserMessage = None
+    ImageContent = None
+    TextDelta = None
+    StreamDone = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 # MongoDB connection (kept for platform compatibility; app is client-side)
-mongo_url = os.environ["MONGO_URL"]
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ["DB_NAME"]]
+mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+db_name = os.environ.get("DB_NAME", "nutrisync")
+try:
+    client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=2000)
+    db = client[db_name]
+except Exception:
+    client = None
+    db = None
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
 
@@ -214,4 +226,5 @@ app.add_middleware(
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client:
+        client.close()
