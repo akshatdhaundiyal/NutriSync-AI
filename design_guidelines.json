@@ -1,0 +1,192 @@
+{
+  "app_name": "NutriSync AI",
+  "personality": "1 iOS-Native Clean with Dark-First Utility elements for Dark Mode",
+  "personality_one_liner": "A clinical yet highly advanced biohacking dashboard combining the approachable clarity of Apple Health with the tactical precision of a 14-day telemetry command center.",
+  "color": {
+    "surface": "#f8fafc",
+    "onSurface": "#0f172a",
+    "surfaceSecondary": "#ffffff",
+    "onSurfaceSecondary": "#475569",
+    "surfaceTertiary": "#f1f5f9",
+    "onSurfaceTertiary": "#334155",
+    "surfaceInverse": "#020617",
+    "onSurfaceInverse": "#f8fafc",
+    "brand": "#059669",
+    "brandPrimary": "#059669",
+    "onBrandPrimary": "#ffffff",
+    "brandSecondary": "#0891b2",
+    "onBrandSecondary": "#ffffff",
+    "brandTertiary": "#d1fae5",
+    "onBrandTertiary": "#064e3b",
+    "success": "#10b981",
+    "onSuccess": "#ffffff",
+    "warning": "#f59e0b",
+    "onWarning": "#ffffff",
+    "error": "#ef4444",
+    "onError": "#ffffff",
+    "info": "#3b82f6",
+    "onInfo": "#ffffff",
+    "border": "#e2e8f0",
+    "borderStrong": "#cbd5e1",
+    "divider": "#f1f5f9",
+    "dark": {
+      "surface": "#020617",
+      "onSurface": "#f8fafc",
+      "surfaceSecondary": "#0f172a",
+      "onSurfaceSecondary": "#94a3b8",
+      "surfaceTertiary": "#1e293b",
+      "onSurfaceTertiary": "#cbd5e1",
+      "surfaceInverse": "#f8fafc",
+      "onSurfaceInverse": "#020617",
+      "brand": "#34d399",
+      "brandPrimary": "#34d399",
+      "onBrandPrimary": "#020617",
+      "brandSecondary": "#22d3ee",
+      "onBrandSecondary": "#020617",
+      "brandTertiary": "#064e3b",
+      "onBrandTertiary": "#34d399",
+      "success": "#10b981",
+      "onSuccess": "#020617",
+      "warning": "#f59e0b",
+      "onWarning": "#020617",
+      "error": "#ef4444",
+      "onError": "#020617",
+      "info": "#3b82f6",
+      "onInfo": "#020617",
+      "border": "#1e293b",
+      "borderStrong": "#334155",
+      "divider": "#0f172a"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Geist-Medium",
+    "textFontFamily": "Geist-Regular",
+    "monoFontFamily": "GeistMono-Regular",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32,
+      "4xl": 48
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room and grouped cards similar to Apple Health.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use blur on the bottom tab bar and sticky headers to give an Apple Health feel.",
+      "Apply glass effects on modal scrims."
+    ],
+    "dont's": [
+      "Do not use glass on standard dashboard cards or form inputs."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Today (Dashboard)",
+      "purpose": "A live command center displaying biometric protocol, readiness ring, stress interdiction, and the chrono-nutrition timeline.",
+      "states": {
+        "loading": "Skeleton loaders for ring and timeline cards.",
+        "empty": "No protocol yet. 'Generate Protocol' CTA.",
+        "error": "Failed to sync with Health Connect. 'Retry Sync' CTA."
+      },
+      "layout": "Top Hero: Google Fit style large Circular Readiness Ring (0-100) using 'brandPrimary' (Emerald) with tabular monospace readout in the center. Below the ring, delta tags for HRV, Sleep, Strain in small pill badges. Middle Section: Acute Stress Interdiction banner (distinct background, calls up Breath Pacer modal). Bottom Section: 'Today's Chrono-Stack' timeline. Each timeline entry is a card with cyan accents ('brandSecondary'), showing product dose, time, and quick check-off. Use generous whitespace (lg/xl margins) around cards to mimic Apple Health."
+    },
+    {
+      "name": "Stash",
+      "purpose": "Manage supplement inventory, view chemical-form quality badges, and add new items via scanner.",
+      "states": {
+        "loading": "Grid of skeleton cards.",
+        "empty": "Empty shelf illustration. 'Add First Supplement' CTA.",
+        "error": "Could not load inventory."
+      },
+      "layout": "Grid or list view. Cards display the supplement name, stock counters (e.g., '30 caps left'), and prominent chemical-form quality badges (green for Optimal, yellow/grey for Low Bioavailability). A floating action button (FAB) for adding new items or snapping a label via the Camera Scanner modal."
+    },
+    {
+      "name": "Trends",
+      "purpose": "N=1 Biometric Correlation interactive charts overlaying supplement intake with HRV and Sleep data.",
+      "states": {
+        "loading": "Faded graph lines with loading spinner.",
+        "empty": "Not enough data yet. Requires 14 days of telemetry.",
+        "error": "Failed to load telemetry data."
+      },
+      "layout": "Apple Health style interactive charts spanning the full width of the card. A segmented control at the top to toggle between HRV and Deep Sleep. The graph uses the brand palette (Emerald/Cyan) against the Slate surface, with clear intake markers indicating when protocols were consumed."
+    },
+    {
+      "name": "Settings",
+      "purpose": "Configure region, theme, AI provider, API keys, and manage Health Connect permissions.",
+      "states": {
+        "loading": "Standard spinner.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Standard grouped list layout (like iOS Settings). Categories for 'Account & Region', 'Theme' (Dark/Light/System), 'AI Configuration' (Provider, API Key), and 'Telemetry & Permissions' (Health Connect toggles, Simulator presets)."
+    }
+  ],
+  "components": {
+    "readiness_ring": {
+      "style": "SVG circular progress. Background track uses surfaceTertiary. Active track uses brandPrimary (Emerald). Center text is an oversized Mono font (3xl or 4xl) for a clinical look."
+    },
+    "chrono_timeline_card": {
+      "style": "surfaceSecondary card with a border left accent of brandSecondary (Cyan). Check-off button on the right."
+    },
+    "quality_badge": {
+      "style": "Pill-shaped, surfaceTertiary background with solid text/icon for optimal forms. Warning colors for low bioavailability."
+    },
+    "breath_pacer_modal": {
+      "style": "Full screen overlay with heavy blur (expo-blur). Central expanding/contracting circle animation using reanimated, guiding a 2-min cyclic sigh."
+    }
+  },
+  "images": {
+    "stash_empty_state": {
+      "url": "https://images.unsplash.com/photo-1664216294580-079bc527ae49?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwxfHxtYWduZXNpdW0lMjBzdXBwbGVtZW50JTIwcGlsbHMlMjBib3R0bGV8ZW58MHx8fHwxNzg4MDcxNzY2fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "A white plastic supplement bottle acting as stash placeholder"
+    },
+    "readiness_hero_bg": {
+      "url": "https://images.unsplash.com/photo-1762716514233-397637223310?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBncmVlbiUyMGdsb3dpbmclMjBmaXRuZXNzJTIwcmluZ3xlbnwwfHx8fDE3ODgwNzE3NjZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract glowing green fitness ring background for dark mode",
+      "dark": "https://images.unsplash.com/photo-1762716514233-397637223310?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBncmVlbiUyMGdsb3dpbmclMjBmaXRuZXNzJTIwcmluZ3xlbnwwfHx8fDE3ODgwNzE3NjZ8MA&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly enforce the dual-theme requirement: Slate-950 canvas/Slate-900 cards in Dark, Slate-50 canvas/White cards in Light. Ensure the Readiness ring is Emerald-400 (Dark) / Emerald-600 (Light) and Timeline accents are Cyan-400 (Dark) / Cyan-600 (Light).",
+    "Use 'Geist-Regular' for text and 'GeistMono-Regular' for numeric readouts, large data displays, and the Readiness Ring score, simulating tabular figures.",
+    "Component Spacing: Emulate Apple Health and Google Fit by using grouped cards with 'lg' or 'xl' padding. Do not let cards stretch edge-to-edge; they should sit inside a padded scroll view.",
+    "Stress Interdiction: Implement a standalone modal component for the 2-min Breath Pacer using Reanimated for smooth expanding/contracting visuals.",
+    "Timeline Check-offs: Provide subtle haptic feedback (using expo-haptics) when a chrono-nutrition dose is marked as consumed.",
+    "No Tailwind or NativeWind. Build components using React Native StyleSheet referencing the color hexes and numeric padding tokens directly."
+  ]
+}
