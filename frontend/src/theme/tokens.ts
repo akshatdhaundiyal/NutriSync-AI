@@ -8,22 +8,34 @@ export interface ThemeColors {
   surface: string;
   surfaceAlt: string;
   surfaceTertiary: string;
+  surfaceHigh: string;
+  surfaceLow: string;
   text: string;
   textMuted: string;
   textFaint: string;
-  brand: string; // emerald
+  brand: string; // primary
   brandSoft: string;
   onBrand: string;
-  accent: string; // cyan
+  primaryContainer: string;
+  onPrimaryContainer: string;
+  accent: string; // secondary
   accentSoft: string;
+  secondaryFixed: string;
+  onSecondaryFixed: string;
+  tertiary: string;
+  onTertiary: string;
+  tertiaryContainer: string;
   border: string;
   borderStrong: string;
+  outlineVariant: string;
   success: string;
   successSoft: string;
   warning: string;
   warningSoft: string;
   danger: string;
   dangerSoft: string;
+  errorContainer: string;
+  onErrorContainer: string;
   info: string;
   ringTrack: string;
   overlay: string;
@@ -31,57 +43,81 @@ export interface ThemeColors {
 }
 
 export const darkColors: ThemeColors = {
-  canvas: "#020617",
-  surface: "#0f172a",
-  surfaceAlt: "#131f38",
-  surfaceTertiary: "#1e293b",
-  text: "#f8fafc",
-  textMuted: "#94a3b8",
-  textFaint: "#64748b",
-  brand: "#34d399",
-  brandSoft: "rgba(52,211,153,0.14)",
-  onBrand: "#020617",
-  accent: "#22d3ee",
-  accentSoft: "rgba(34,211,238,0.14)",
-  border: "#1e293b",
-  borderStrong: "#334155",
-  success: "#34d399",
-  successSoft: "rgba(52,211,153,0.14)",
+  canvas: "#0b1420",
+  surface: "#131f30",
+  surfaceAlt: "#16233a",
+  surfaceTertiary: "#1c2b40",
+  surfaceHigh: "#22344c",
+  surfaceLow: "#101b2b",
+  text: "#eaf1ff",
+  textMuted: "#a9bccf",
+  textFaint: "#6f8296",
+  brand: "#4edea3",
+  brandSoft: "rgba(78,222,163,0.14)",
+  onBrand: "#00281a",
+  primaryContainer: "#10b981",
+  onPrimaryContainer: "#00311f",
+  accent: "#c0c1ff",
+  accentSoft: "rgba(70,72,212,0.30)",
+  secondaryFixed: "#2b2ba6",
+  onSecondaryFixed: "#e1e0ff",
+  tertiary: "#ffb2b7",
+  onTertiary: "#5f0018",
+  tertiaryContainer: "#8c0031",
+  border: "#243349",
+  borderStrong: "#33455f",
+  outlineVariant: "#33455f",
+  success: "#4edea3",
+  successSoft: "rgba(78,222,163,0.14)",
   warning: "#fbbf24",
-  warningSoft: "rgba(251,191,36,0.14)",
-  danger: "#f87171",
-  dangerSoft: "rgba(248,113,113,0.14)",
-  info: "#60a5fa",
-  ringTrack: "#1e293b",
+  warningSoft: "rgba(251,191,36,0.16)",
+  danger: "#ffb4ab",
+  dangerSoft: "rgba(147,0,10,0.38)",
+  errorContainer: "#8c1d18",
+  onErrorContainer: "#ffdad6",
+  info: "#c0c1ff",
+  ringTrack: "rgba(78,222,163,0.18)",
   overlay: "rgba(2,6,23,0.72)",
-  glowShadow: "#34d399",
+  glowShadow: "#10b981",
 };
 
 export const lightColors: ThemeColors = {
-  canvas: "#f8fafc",
+  canvas: "#f8f9ff",
   surface: "#ffffff",
-  surfaceAlt: "#ffffff",
-  surfaceTertiary: "#f1f5f9",
-  text: "#0f172a",
-  textMuted: "#475569",
-  textFaint: "#94a3b8",
-  brand: "#059669",
-  brandSoft: "rgba(5,150,105,0.10)",
+  surfaceAlt: "#eff4ff",
+  surfaceTertiary: "#e5eeff",
+  surfaceHigh: "#dce9ff",
+  surfaceLow: "#eff4ff",
+  text: "#0b1c30",
+  textMuted: "#3c4a42",
+  textFaint: "#6c7a71",
+  brand: "#006c49",
+  brandSoft: "rgba(0,108,73,0.10)",
   onBrand: "#ffffff",
-  accent: "#0891b2",
-  accentSoft: "rgba(8,145,178,0.10)",
-  border: "#e2e8f0",
-  borderStrong: "#cbd5e1",
-  success: "#059669",
-  successSoft: "rgba(5,150,105,0.10)",
-  warning: "#d97706",
-  warningSoft: "rgba(217,119,6,0.10)",
-  danger: "#dc2626",
-  dangerSoft: "rgba(220,38,38,0.10)",
-  info: "#2563eb",
-  ringTrack: "#e2e8f0",
-  overlay: "rgba(15,23,42,0.45)",
-  glowShadow: "#059669",
+  primaryContainer: "#10b981",
+  onPrimaryContainer: "#00311f",
+  accent: "#4648d4",
+  accentSoft: "#e1e0ff",
+  secondaryFixed: "#e1e0ff",
+  onSecondaryFixed: "#07006c",
+  tertiary: "#bc0b3b",
+  onTertiary: "#ffffff",
+  tertiaryContainer: "#ff7886",
+  border: "#dbe4f0",
+  borderStrong: "#c3d2e6",
+  outlineVariant: "#bbcabf",
+  success: "#006c49",
+  successSoft: "rgba(0,108,73,0.10)",
+  warning: "#b45309",
+  warningSoft: "rgba(245,158,11,0.16)",
+  danger: "#ba1a1a",
+  dangerSoft: "#ffdad6",
+  errorContainer: "#ffdad6",
+  onErrorContainer: "#93000a",
+  info: "#4648d4",
+  ringTrack: "rgba(0,108,73,0.16)",
+  overlay: "rgba(11,28,48,0.45)",
+  glowShadow: "#10b981",
 };
 
 export const spacing = {
@@ -103,11 +139,13 @@ export const radius = {
 } as const;
 
 export const font = {
-  regular: "Geist-Regular",
-  medium: "Geist-Medium",
-  semibold: "Geist-SemiBold",
-  mono: "GeistMono-Regular",
-  monoMed: "GeistMono-Medium",
+  regular: "Inter-Regular",
+  medium: "Inter-Medium",
+  semibold: "Inter-SemiBold",
+  heading: "HankenGrotesk-SemiBold",
+  display: "HankenGrotesk-Bold",
+  mono: "HankenGrotesk-Bold",
+  monoMed: "HankenGrotesk-Bold",
 } as const;
 
 export const fontSize = {

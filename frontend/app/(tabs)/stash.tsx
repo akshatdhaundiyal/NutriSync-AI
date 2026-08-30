@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -9,6 +10,8 @@ import { QualityBadge } from "@/src/components/QualityBadge";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { useToast } from "@/src/components/ToastProvider";
 import { Chip, ChipRow } from "@/src/components/ui";
+import { COMPOUNDS } from "@/src/data/compounds";
+import { buyOptions } from "@/src/services/procurement";
 import { useStore } from "@/src/store/useStore";
 import { useTheme } from "@/src/theme/useTheme";
 import { DoseUnit, StashItem } from "@/src/types";
@@ -34,21 +37,51 @@ export default function StashScreen() {
   const toast = useToast();
 
   const stash = useStore((s) => s.stash);
+  const protocol = useStore((s) => s.protocol);
+  const region = useStore((s) => s.settings.region);
   const adjustStock = useStore((s) => s.adjustStock);
   const removeStashItem = useStore((s) => s.removeStashItem);
 
   const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+
+  const ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+    "vitamin-d3": "sunny",
+    omega3: "water",
+    creatine: "flash",
+    magnesium: "moon",
+    "l-theanine": "leaf",
+    ashwagandha: "leaf",
+    zinc: "shield-half",
+    iron: "magnet",
+    "vitamin-b12": "flash",
+    "vitamin-c": "nutrition",
+    glycine: "flask",
+    apigenin: "moon",
+    electrolytes: "flask",
+  };
+  const iconFor = (c: string) => ICON[c] ?? "medical";
 
   const active = stash.filter((s) => !s.deletedAt);
   const isLow = (i: StashItem) =>
     i.stockUnits <= Math.max(10, Math.round(i.unitsPerContainer * 0.15));
 
+  const q = query.trim().toLowerCase();
   const filtered = active.filter((i) => {
-    if (filter === "optimal") return i.quality === "optimal";
-    if (filter === "low") return i.quality === "low";
-    if (filter === "running_low") return isLow(i);
-    return true;
+    const matchesQ =
+      !q || `${i.brand} ${i.name} ${i.chemicalForm}`.toLowerCase().includes(q);
+    const matchesF =
+      filter === "optimal"
+        ? i.quality === "optimal"
+        : filter === "low"
+          ? i.quality === "low"
+          : filter === "running_low"
+            ? isLow(i)
+            : true;
+    return matchesQ && matchesF;
   });
+
+  const missing = protocol?.items.find((i) => !i.inStash) ?? null;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
@@ -56,6 +89,71 @@ export default function StashScreen() {
         title="Cabinet Stash"
         subtitle={`${active.length} supplements on shelf`}
       />
+
+      {/* search + scan row */}
+      <View
+        style={{
+          flexDirection: "row",
+          gap: spacing.sm,
+          paddingHorizontal: spacing.lg,
+          marginTop: spacing.xs,
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing.sm,
+            backgroundColor: colors.surface,
+            borderRadius: radius.pill,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: colors.border,
+            paddingHorizontal: spacing.md,
+            height: 48,
+          }}
+        >
+          <Ionicons name="search" size={18} color={colors.textFaint} />
+          <TextInput
+            testID="stash-search"
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search your cabinet"
+            placeholderTextColor={colors.textFaint}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={{ flex: 1, color: colors.text, fontFamily: font.regular, fontSize: fontSize.base }}
+          />
+          {query.length > 0 ? (
+            <Pressable testID="stash-search-clear" hitSlop={8} onPress={() => setQuery("")}>
+              <Ionicons name="close-circle" size={18} color={colors.textFaint} />
+            </Pressable>
+          ) : null}
+        </View>
+        <Pressable
+          testID="stash-scan"
+          onPress={() => {
+            tap();
+            router.push("/scan");
+          }}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: radius.lg,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.brand,
+            shadowColor: colors.glowShadow,
+            shadowOpacity: 0.35,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 5,
+          }}
+        >
+          <Ionicons name="scan" size={22} color={colors.onBrand} />
+        </Pressable>
+      </View>
+
       <ChipRow testID="stash-filter-row">
         {FILTERS.map((f) => (
           <Chip
@@ -77,9 +175,79 @@ export default function StashScreen() {
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.sm,
-          paddingBottom: spacing.xxxl + insets.bottom + 60,
+          paddingBottom: spacing.xxxl + insets.bottom + 24,
         }}
       >
+        {missing ? (
+          <Animated.View
+            entering={FadeInDown.duration(350)}
+            testID="missing-item-card"
+            style={{
+              backgroundColor: colors.secondaryFixed,
+              borderRadius: radius.lg,
+              padding: spacing.lg,
+              marginBottom: spacing.lg,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing.md,
+            }}
+          >
+            <View
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 14,
+                backgroundColor: colors.onSecondaryFixed + "22",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="add-circle" size={24} color={colors.onSecondaryFixed} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ color: colors.onSecondaryFixed, fontFamily: font.medium, fontSize: fontSize.xs, letterSpacing: 0.5 }}
+              >
+                RECOMMENDED · NOT IN CABINET
+              </Text>
+              <Text
+                style={{ color: colors.onSecondaryFixed, fontFamily: font.semibold, fontSize: fontSize.lg, marginTop: 2 }}
+              >
+                {COMPOUNDS[missing.canonical]?.label ?? missing.compound}
+              </Text>
+            </View>
+            <Pressable
+              testID="missing-item-buy"
+              onPress={() => {
+                tap();
+                const opt =
+                  missing.buyOptions?.[0] ??
+                  buyOptions(
+                    COMPOUNDS[missing.canonical]?.label ?? missing.compound,
+                    missing.chemicalForm,
+                    region,
+                  )[0];
+                WebBrowser.openBrowserAsync(opt.url);
+                toast.show(`Opening ${opt.merchant}…`, "info");
+              }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: colors.onSecondaryFixed,
+                borderRadius: radius.pill,
+                paddingHorizontal: 14,
+                paddingVertical: 9,
+              }}
+            >
+              <Ionicons name="cart" size={14} color={colors.secondaryFixed} />
+              <Text style={{ color: colors.secondaryFixed, fontFamily: font.semibold, fontSize: fontSize.sm }}>
+                Buy
+              </Text>
+            </Pressable>
+          </Animated.View>
+        ) : null}
+
         {filtered.length === 0 ? (
           <View style={{ alignItems: "center", paddingTop: spacing.xxxl, gap: spacing.md }}>
             <View
@@ -125,7 +293,19 @@ export default function StashScreen() {
                 marginBottom: spacing.md,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md }}>
+                <View
+                  style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: 14,
+                    backgroundColor: colors.brandSoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name={iconFor(item.canonical)} size={22} color={colors.brand} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: fontSize.xs }}>
                     {item.brand}
@@ -213,37 +393,6 @@ export default function StashScreen() {
           ))
         )}
       </ScrollView>
-
-      {/* Floating add / scan */}
-      <Pressable
-        testID="stash-fab"
-        onPress={() => {
-          tap();
-          router.push("/scan");
-        }}
-        style={{
-          position: "absolute",
-          right: spacing.lg,
-          bottom: insets.bottom + spacing.lg,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          backgroundColor: colors.brand,
-          borderRadius: radius.pill,
-          paddingHorizontal: 18,
-          paddingVertical: 14,
-          shadowColor: colors.glowShadow,
-          shadowOpacity: 0.4,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 6,
-        }}
-      >
-        <Ionicons name="scan" size={18} color={colors.onBrand} />
-        <Text style={{ color: colors.onBrand, fontFamily: font.semibold, fontSize: fontSize.base }}>
-          Add / Scan
-        </Text>
-      </Pressable>
     </View>
   );
 }

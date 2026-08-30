@@ -35,6 +35,11 @@ export function Card({
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: colors.border,
           padding: padded ? spacing.lg : 0,
+          shadowColor: "#0b1c30",
+          shadowOpacity: 0.05,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 1,
         },
         style,
       ]}
@@ -90,7 +95,7 @@ export function AppButton({
       style={({ pressed }) => [
         {
           backgroundColor: bg,
-          borderRadius: radius.md,
+          borderRadius: radius.pill,
           paddingVertical: 14,
           paddingHorizontal: spacing.lg,
           flexDirection: "row",
@@ -291,7 +296,7 @@ export function SectionTitle({
       <Text
         style={{
           color: colors.text,
-          fontFamily: font.semibold,
+          fontFamily: font.heading,
           fontSize: fontSize.xl,
         }}
       >

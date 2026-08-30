@@ -27,36 +27,50 @@ export function ScreenHeader({
       style={{
         paddingTop: insets.top + spacing.sm,
         paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.md,
+        paddingBottom: spacing.sm,
         backgroundColor: colors.canvas,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: colors.border,
         flexDirection: "row",
-        alignItems: "flex-end",
+        alignItems: "center",
         justifyContent: "space-between",
+        gap: spacing.md,
       }}
     >
-      <View style={{ flex: 1 }}>
-        {subtitle ? (
-          <Text
-            style={{
-              color: colors.textMuted,
-              fontFamily: font.medium,
-              fontSize: fontSize.sm,
-            }}
-          >
-            {subtitle}
-          </Text>
-        ) : null}
-        <Text
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1 }}>
+        <View
           style={{
-            color: colors.text,
-            fontFamily: font.semibold,
-            fontSize: fontSize.xxl,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: colors.primaryContainer,
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          {title}
-        </Text>
+          <Ionicons name="person" size={22} color={colors.onPrimaryContainer} />
+        </View>
+        <View style={{ flex: 1 }}>
+          {subtitle ? (
+            <Text
+              style={{
+                color: colors.textMuted,
+                fontFamily: font.medium,
+                fontSize: fontSize.sm,
+              }}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.text,
+              fontFamily: font.display,
+              fontSize: fontSize.xxl,
+            }}
+          >
+            {title}
+          </Text>
+        </View>
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         {right}

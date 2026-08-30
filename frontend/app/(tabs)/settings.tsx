@@ -24,7 +24,7 @@ const PROVIDERS: { value: AIProvider; sub: string; icon: keyof typeof Ionicons.g
 ];
 
 export default function SettingsScreen() {
-  const { colors, font, fontSize, spacing, radius } = useTheme();
+  const { colors, font, fontSize, spacing } = useTheme();
   const insets = useSafeAreaInsets();
   const toast = useToast();
 
@@ -109,7 +109,7 @@ export default function SettingsScreen() {
               paddingHorizontal: spacing.lg,
             }}
           >
-            Controls which merchants appear on "Buy New" cards.
+            Controls which merchants appear on “Buy New” cards.
           </Text>
         </Card>
 

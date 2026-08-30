@@ -2,18 +2,28 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ChronoCard } from "@/src/components/ChronoCard";
-import { DeltaTag } from "@/src/components/DeltaTag";
+import { ChronoTimeline } from "@/src/components/ChronoTimeline";
 import { ReadinessRing } from "@/src/components/ReadinessRing";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { StressBanner } from "@/src/components/StressBanner";
 import { useToast } from "@/src/components/ToastProvider";
 import { AppButton, Card, Pill, SectionTitle } from "@/src/components/ui";
-import { PROVIDER_LABEL } from "@/src/services/ai";
+import {
+  BloodworkCard,
+  GuardrailCard,
+  LowStockCard,
+  LowStockEntry,
+  ModeSelector,
+  StreakCard,
+} from "@/src/components/dashboardCards";
+import { COMPOUNDS } from "@/src/data/compounds";
+import { computeBestStreak, computeStreak, isLowStock } from "@/src/services/adherence";
+import { computeGuardrails } from "@/src/services/guardrails";
+import { buyOptions } from "@/src/services/procurement";
 import { useStore } from "@/src/store/useStore";
 import { useTheme } from "@/src/theme/useTheme";
 import { impact, success, tap } from "@/src/utils/haptics";
@@ -46,9 +56,13 @@ export default function DashboardScreen() {
   const telemetry = useStore((s) => s.telemetry);
   const intake = useStore((s) => s.intake);
   const generating = useStore((s) => s.generating);
-  const provider = useStore((s) => s.settings.aiProvider);
   const reanalyze = useStore((s) => s.reanalyze);
   const toggleIntake = useStore((s) => s.toggleIntake);
+  const stash = useStore((s) => s.stash);
+  const adherenceDates = useStore((s) => s.adherenceDates);
+  const bloodMarkers = useStore((s) => s.bloodMarkers);
+  const region = useStore((s) => s.settings.region);
+  const clearBloodMarkers = useStore((s) => s.clearBloodMarkers);
 
   const today = telemetry[telemetry.length - 1];
 
@@ -72,18 +86,48 @@ export default function DashboardScreen() {
 
   const activeCount = protocol.items.length;
 
+  const guardrails = computeGuardrails(protocol.items);
+  const streak = computeStreak(adherenceDates, todayKey());
+  const best = computeBestStreak(adherenceDates);
+  const todayComplete = adherenceDates.includes(todayKey());
+  const lowEntries: LowStockEntry[] = stash
+    .filter((s) => !s.deletedAt && isLowStock(s))
+    .map((s) => {
+      const label = COMPOUNDS[s.canonical]?.label ?? s.name;
+      const opt = buyOptions(label, s.chemicalForm, region)[0];
+      return {
+        id: s.id,
+        name: `${s.brand} ${s.name}`,
+        left: `${s.stockUnits} ${s.unit}s left`,
+        url: opt.url,
+        merchant: opt.merchant,
+      };
+    });
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
       <ScreenHeader
         title="Today"
         subtitle={dateLabel()}
         right={
-          <Pill
-            label={PROVIDER_LABEL[provider].split(" (")[0]}
-            color={colors.accent}
-            bg={colors.accentSoft}
-            icon="hardware-chip"
-          />
+          <Pressable
+            testID="header-sync"
+            onPress={async () => {
+              tap();
+              await reanalyze();
+              toast.show("Protocol re-analyzed");
+            }}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.surfaceTertiary,
+            }}
+          >
+            <Ionicons name="sync" size={18} color={colors.brand} />
+          </Pressable>
         }
       />
 
@@ -91,7 +135,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           padding: spacing.lg,
-          paddingBottom: spacing.xxxl + insets.bottom,
+          paddingBottom: spacing.xxxl * 2 + insets.bottom,
         }}
       >
         <Animated.View entering={FadeInDown.duration(400)}>
@@ -100,30 +144,41 @@ export default function DashboardScreen() {
             <View
               style={{
                 flexDirection: "row",
+                flexWrap: "wrap",
                 gap: spacing.sm,
                 marginTop: spacing.lg,
-                alignSelf: "stretch",
+                justifyContent: "center",
               }}
             >
-              <DeltaTag
-                label="Deep Sleep"
-                value={fmtSleep(today.deepSleepMin)}
-                delta={readiness.deepSleepDelta}
+              <Pill
+                icon="moon"
+                label={`Deep Sleep ${fmtSleep(today.deepSleepMin)} (${readiness.deepSleepDelta > 0 ? "+" : ""}${readiness.deepSleepDelta}%)`}
+                color={colors.onSecondaryFixed}
+                bg={colors.secondaryFixed}
               />
-              <DeltaTag
-                label="HRV"
-                value={`${today.hrvMs}ms`}
-                delta={readiness.hrvDelta}
+              <Pill
+                icon="heart"
+                label={`HRV ${today.hrvMs}ms (${readiness.hrvDelta > 0 ? "+" : ""}${readiness.hrvDelta}%)`}
+                color={readiness.hrvDelta < 0 ? colors.onErrorContainer : colors.brand}
+                bg={readiness.hrvDelta < 0 ? colors.errorContainer : colors.brandSoft}
               />
-              <DeltaTag
-                label="Active Strain"
-                value={`${today.strain}`}
-                delta={readiness.strainDelta}
-                goodWhenPositive={false}
+              <Pill
+                icon="flame"
+                label={`Strain ${today.strain}`}
+                color={colors.brand}
+                bg={colors.brandSoft}
               />
             </View>
           </Card>
         </Animated.View>
+
+        <View style={{ marginTop: spacing.lg }}>
+          <ModeSelector />
+        </View>
+
+        <View style={{ marginTop: spacing.md }}>
+          <StreakCard streak={streak} best={best} todayComplete={todayComplete} />
+        </View>
 
         {readiness.state === "stress" ? (
           <Animated.View
@@ -139,8 +194,38 @@ export default function DashboardScreen() {
           </Animated.View>
         ) : null}
 
+        {guardrails.length > 0 ? (
+          <View style={{ marginTop: spacing.lg }}>
+            <GuardrailCard warnings={guardrails} />
+          </View>
+        ) : null}
+
+        {lowEntries.length > 0 ? (
+          <View style={{ marginTop: spacing.lg }}>
+            <LowStockCard
+              items={lowEntries}
+              onReorder={(url, m) => {
+                WebBrowser.openBrowserAsync(url);
+                toast.show(`Opening ${m}…`, "info");
+              }}
+            />
+          </View>
+        ) : null}
+
+        {bloodMarkers.length > 0 ? (
+          <View style={{ marginTop: spacing.lg }}>
+            <BloodworkCard
+              markers={bloodMarkers}
+              onClear={() => {
+                clearBloodMarkers();
+                toast.show("Bloodwork cleared", "info");
+              }}
+            />
+          </View>
+        ) : null}
+
         <SectionTitle
-          title="Today's Chrono-Stack"
+          title="Today's Chrono-Protocol"
           right={
             <Pill
               label={`${activeCount}/3 active`}
@@ -192,27 +277,20 @@ export default function DashboardScreen() {
             </Card>
           </Animated.View>
         ) : (
-          protocol.items.map((item, idx) => (
-            <Animated.View
-              key={item.id}
-              entering={FadeInDown.delay(60 * idx).duration(400)}
-              style={{ marginBottom: spacing.md }}
-            >
-              <ChronoCard
-                item={item}
-                taken={isTaken(item.slot, item.canonical)}
-                onToggle={() => {
-                  isTaken(item.slot, item.canonical) ? tap() : success();
-                  toggleIntake(item.slot, item.canonical);
-                }}
-                onBuy={(url, merchant) => {
-                  tap();
-                  WebBrowser.openBrowserAsync(url);
-                  toast.show(`Opening ${merchant}…`, "info");
-                }}
-              />
-            </Animated.View>
-          ))
+          <ChronoTimeline
+            items={protocol.items}
+            isTaken={isTaken}
+            onToggle={(item) => {
+              if (isTaken(item.slot, item.canonical)) tap();
+              else success();
+              toggleIntake(item.slot, item.canonical);
+            }}
+            onBuy={(url, merchant) => {
+              tap();
+              WebBrowser.openBrowserAsync(url);
+              toast.show(`Opening ${merchant}…`, "info");
+            }}
+          />
         )}
 
         <View style={{ marginTop: spacing.md }}>

@@ -5,6 +5,7 @@ import {
   DoseUnit,
   Protocol,
   ProtocolItem,
+  ProtocolMode,
   Readiness,
   Recommendation,
   RecommendationSet,
@@ -39,13 +40,99 @@ function doseUnitLabel(u: DoseUnit): string {
 
 // ---- Local deterministic protocol engine (Offline Mock) ----
 
+export interface Deficiency {
+  canonical: string;
+  name: string;
+  value: number;
+  unit: string;
+}
+
+interface Candidate {
+  canonical: string;
+  priority: number;
+  rationale: string;
+  tag?: string;
+}
+
+function autoCandidates(today: TelemetryDay, readiness: Readiness): Candidate[] {
+  const highStrain = today.strain >= 12;
+  const lowHrv = readiness.hrvDelta <= -6;
+  const lowSleep = readiness.deepSleepDelta <= -8;
+  const stress = readiness.state === "stress";
+
+  const c: Candidate[] = [];
+  const push = (canonical: string, priority: number, rationale: string) =>
+    c.push({ canonical, priority, rationale });
+
+  if (stress) {
+    push("magnesium", 100, "Sympathetic spike detected — magnesium glycinate blunts cortisol and eases the nervous system into parasympathetic tone.");
+    push("l-theanine", 95, "Raises alpha brain waves to calm an acute stress response without sedation.");
+    push("ashwagandha", 80, "KSM-66 lowers evening cortisol after a high-stress day.");
+  }
+  if (lowSleep) {
+    push("magnesium", 92, "Deep sleep is below your 7-day baseline — magnesium supports GABA and slow-wave sleep.");
+    push("glycine", 78, "3g glycine pre-bed lowers core temperature and deepens slow-wave sleep.");
+    push("apigenin", 70, "Binds GABA-A receptors to shorten sleep latency after a poor night.");
+  }
+  if (lowHrv) {
+    push("magnesium", 88, "Suppressed HRV signals autonomic load — magnesium restores vagal tone.");
+    push("omega3", 74, "EPA/DHA raises HRV and dampens systemic inflammation.");
+  }
+  if (highStrain) {
+    push("creatine", 85, "Heavy training load — 5g creatine replenishes phosphocreatine and speeds recovery.");
+    push("electrolytes", 72, "Replace sodium, potassium and magnesium lost through heavy sweat.");
+    push("omega3", 68, "Blunts exercise-induced inflammation after a high-strain session.");
+  }
+
+  push("vitamin-d3", 40, "Foundational immune and hormonal support with breakfast fats.");
+  return c;
+}
+
+function modeCandidates(mode: ProtocolMode): Candidate[] {
+  const c: Candidate[] = [];
+  const push = (canonical: string, priority: number, rationale: string) =>
+    c.push({ canonical, priority, rationale, tag: mode });
+
+  if (mode === "travel") {
+    push("magnesium", 100, "Travel mode — magnesium eases circadian disruption and supports sleep across time zones.");
+    push("l-theanine", 95, "Calms travel anxiety and helps you rest upright in transit.");
+    push("vitamin-c", 85, "Immune fortification against recirculated cabin air.");
+    push("electrolytes", 80, "Counter dehydration from flying and climate shifts.");
+  } else if (mode === "illness") {
+    push("vitamin-c", 110, "Illness mode — vitamin C supports a robust immune response.");
+    push("zinc", 105, "Zinc shortens cold/flu duration when started early.");
+    push("vitamin-d3", 95, "Vitamin D modulates immune defense.");
+  } else if (mode === "deload") {
+    push("omega3", 100, "Deload mode — omega-3 clears residual training inflammation during your recovery week.");
+    push("magnesium", 95, "Supports deep sleep and parasympathetic recovery on low-training days.");
+    push("glycine", 60, "Gentle pre-bed glycine to maximize restorative sleep.");
+  }
+  return c;
+}
+
+function deficiencyCandidates(defs: Deficiency[]): Candidate[] {
+  return defs.map((d) => {
+    const lib = COMPOUNDS[d.canonical];
+    return {
+      canonical: d.canonical,
+      priority: 120,
+      tag: "lab",
+      rationale: `Your labs flagged ${d.name} at ${d.value}${d.unit} (low) — ${lib?.label ?? d.canonical} replenishes it.`,
+    };
+  });
+}
+
 export function mockRecommendations(ctx: {
   today: TelemetryDay;
   readiness: Readiness;
+  mode?: ProtocolMode;
+  deficiencies?: Deficiency[];
 }): RecommendationSet {
-  const { today, readiness } = ctx;
+  const mode = ctx.mode ?? "auto";
+  const deficiencies = ctx.deficiencies ?? [];
+  const defRecs = deficiencyCandidates(deficiencies);
 
-  if (readiness.state === "optimal") {
+  if (mode === "auto" && ctx.readiness.state === "optimal" && deficiencies.length === 0) {
     return {
       zeroPill: true,
       wholeFoodNote:
@@ -54,90 +141,22 @@ export function mockRecommendations(ctx: {
     };
   }
 
-  const highStrain = today.strain >= 12;
-  const lowHrv = readiness.hrvDelta <= -6;
-  const lowSleep = readiness.deepSleepDelta <= -8;
-  const stress = readiness.state === "stress";
+  const base =
+    mode === "auto" ? autoCandidates(ctx.today, ctx.readiness) : modeCandidates(mode);
+  const all = [...defRecs, ...base];
 
-  // Build a prioritized candidate list, then dedupe + cap at 3 (guardrail).
-  const candidates: { canonical: string; priority: number; rationale: string }[] =
-    [];
-  const push = (canonical: string, priority: number, rationale: string) =>
-    candidates.push({ canonical, priority, rationale });
-
-  if (stress) {
-    push(
-      "magnesium",
-      100,
-      "Sympathetic spike detected — magnesium glycinate blunts cortisol and eases the nervous system into parasympathetic tone.",
-    );
-    push(
-      "l-theanine",
-      95,
-      "Raises alpha brain waves to calm an acute stress response without sedation.",
-    );
-    push(
-      "ashwagandha",
-      80,
-      "KSM-66 lowers evening cortisol after a high-stress day.",
-    );
-  }
-  if (lowSleep) {
-    push(
-      "magnesium",
-      92,
-      "Deep sleep is below your 7-day baseline — magnesium supports GABA and slow-wave sleep.",
-    );
-    push(
-      "glycine",
-      78,
-      "3g glycine pre-bed lowers core temperature and deepens slow-wave sleep.",
-    );
-    push(
-      "apigenin",
-      70,
-      "Binds GABA-A receptors to shorten sleep latency after a poor night.",
-    );
-  }
-  if (lowHrv) {
-    push(
-      "magnesium",
-      88,
-      "Suppressed HRV signals autonomic load — magnesium restores vagal tone.",
-    );
-    push(
-      "omega3",
-      74,
-      "EPA/DHA raises HRV and dampens systemic inflammation.",
-    );
-  }
-  if (highStrain) {
-    push(
-      "creatine",
-      85,
-      "Heavy training load — 5g creatine replenishes phosphocreatine and speeds recovery.",
-    );
-    push(
-      "electrolytes",
-      72,
-      "Replace sodium, potassium and magnesium lost through heavy sweat.",
-    );
-    push(
-      "omega3",
-      68,
-      "Blunts exercise-induced inflammation after a high-strain session.",
-    );
-  }
-
-  // Always keep a foundational morning anchor if room remains.
-  push("vitamin-d3", 40, "Foundational immune and hormonal support with breakfast fats.");
-
-  // Dedupe by canonical keeping the highest priority + its rationale.
-  const byCanonical = new Map<string, { priority: number; rationale: string }>();
-  for (const c of candidates) {
-    const existing = byCanonical.get(c.canonical);
-    if (!existing || c.priority > existing.priority) {
-      byCanonical.set(c.canonical, { priority: c.priority, rationale: c.rationale });
+  const byCanonical = new Map<
+    string,
+    { priority: number; rationale: string; tag?: string }
+  >();
+  for (const cand of all) {
+    const e = byCanonical.get(cand.canonical);
+    if (!e || cand.priority > e.priority) {
+      byCanonical.set(cand.canonical, {
+        priority: cand.priority,
+        rationale: cand.rationale,
+        tag: cand.tag,
+      });
     }
   }
 
@@ -157,6 +176,7 @@ export function mockRecommendations(ctx: {
       rationale: meta.rationale,
       window: lib?.window,
       foodAlternatives: lib?.foods,
+      tag: meta.tag,
     };
   });
 
@@ -212,6 +232,7 @@ export function buildProtocol(
       foodAlternatives,
       inStash: false,
       doseText: "",
+      tag: rec.tag,
     };
 
     if (match) {

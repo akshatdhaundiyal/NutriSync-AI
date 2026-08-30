@@ -12,6 +12,13 @@ const SLOT_META: Record<Slot, { title: string; icon: keyof typeof Ionicons.glyph
     evening: { title: "Evening", icon: "moon" },
   };
 
+const TAG_LABEL: Record<string, string> = {
+  lab: "From your labs",
+  travel: "Travel mode",
+  illness: "Illness mode",
+  deload: "Deload mode",
+};
+
 export function ChronoCard({
   item,
   taken,
@@ -34,8 +41,6 @@ export function ChronoCard({
         borderRadius: radius.lg,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
-        borderLeftWidth: 3,
-        borderLeftColor: colors.accent,
         padding: spacing.lg,
         opacity: taken ? 0.72 : 1,
       }}
@@ -112,6 +117,36 @@ export function ChronoCard({
           >
             {item.compound}
           </Text>
+          {item.tag && TAG_LABEL[item.tag] ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                alignSelf: "flex-start",
+                marginTop: 4,
+                backgroundColor: item.tag === "lab" ? colors.dangerSoft : colors.accentSoft,
+                borderRadius: radius.pill,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+              }}
+            >
+              <Ionicons
+                name={item.tag === "lab" ? "water" : "sparkles"}
+                size={10}
+                color={item.tag === "lab" ? colors.danger : colors.accent}
+              />
+              <Text
+                style={{
+                  color: item.tag === "lab" ? colors.danger : colors.accent,
+                  fontFamily: font.medium,
+                  fontSize: fontSize.xs,
+                }}
+              >
+                {TAG_LABEL[item.tag]}
+              </Text>
+            </View>
+          ) : null}
           <Text
             style={{
               color: colors.brand,

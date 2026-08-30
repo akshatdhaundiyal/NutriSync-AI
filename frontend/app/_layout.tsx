@@ -43,11 +43,11 @@ function RootNavigator() {
 export default function RootLayout() {
   const [iconsLoaded, iconError] = useIconFonts();
   const [fontsLoaded, fontError] = useFonts({
-    "Geist-Regular": require("@/assets/fonts/Geist-Regular.ttf"),
-    "Geist-Medium": require("@/assets/fonts/Geist-Medium.ttf"),
-    "Geist-SemiBold": require("@/assets/fonts/Geist-SemiBold.ttf"),
-    "GeistMono-Regular": require("@/assets/fonts/GeistMono-Regular.ttf"),
-    "GeistMono-Medium": require("@/assets/fonts/GeistMono-Medium.ttf"),
+    "Inter-Regular": require("@/assets/fonts/Inter-Regular.ttf"),
+    "Inter-Medium": require("@/assets/fonts/Inter-Medium.ttf"),
+    "Inter-SemiBold": require("@/assets/fonts/Inter-SemiBold.ttf"),
+    "HankenGrotesk-SemiBold": require("@/assets/fonts/HankenGrotesk-SemiBold.ttf"),
+    "HankenGrotesk-Bold": require("@/assets/fonts/HankenGrotesk-Bold.ttf"),
   });
 
   const hydrate = useStore((s) => s.hydrate);

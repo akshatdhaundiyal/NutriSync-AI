@@ -1,0 +1,40 @@
+{
+  "summary": "NutriSync AI iteration-2 regression pass after Material-3 Dashboard + Cabinet redesign and 4 new features (streak/reorder, guardrails, protocol modes, blood-test import). Backend: 8/8 pytest tests pass — health, root, protocol via gpt-5.4 (recovery), protocol via gemini-3.1-pro-preview (optimal zero-pill + recovery), OCR supplement label (magnesium/200mg/120 capsules extracted correctly), NEW OCR blood-test (ferritin/vit D/mag extracted with status), and bad-image error path. Frontend: every testID from the review request is present and functional — ModeSelector chips (mode-auto/travel/illness/deload) switch and re-analyze, streak-card renders, sync-reanalyze + header-sync trigger 'Protocol re-analyzed' toast, 3 chrono checkoffs toggle intake, theme-toggle in header flips theme; Cabinet stash-search filters live, all 4 filter chips work, missing-item-card (Glycine) + missing-item-buy render, stock ± steppers on seed-magnesium adjust count, delete-<id> present, stash-scan opens /scan; Trends seg-deep/seg-hrv toggle chart; Settings theme-segmented (system/light/dark), region chips, provider rows, gemini/openai key inputs + save, presets — acute_stress produces stress-banner on dashboard and start-breath-pacer NAVIGATES to /breath (previously flaky, now solid); rest_balanced produces zero-pill-card 'System Balanced' at readiness 98 OPTIMAL; /scan panel-segmented (seg-supplement/seg-bloodtest), manual add flow via input-brand/name/form/dose + save-supplement successfully adds TEST_Nordic/TEST_Omega3 to Cabinet (verified via stash search), blood-test panel renders blood-camera/blood-library. No functional regressions. The RN deprecation warnings from iteration 1 are still present (transform-origin, shadow*, pointerEvents) — cosmetic, unchanged. Also observed: console warn 'GO_BACK not handled' when save-supplement is triggered from a deep-linked /scan open — harmless dev warning only.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "transform-origin DOM prop", "issue": "Console error: Invalid DOM property `transform-origin`. Should be `transformOrigin`. Still present on every screen with the ReadinessRing. Reference: likely /app/frontend/src/components/ReadinessRing.tsx (SVG transform prop)."},
+      {"component": "pointerEvents deprecation", "issue": "Console warning: `props.pointerEvents is deprecated. Use style.pointerEvents`. RN 0.74+ deprecation. Grep for `pointerEvents=` in /app/frontend/src and move into style objects."},
+      {"component": "shadow* deprecation", "issue": "Console warning: `\"shadow*\" style props are deprecated. Use \"boxShadow\"`. Affects Card / FAB / ScreenHeader. Migrate shadowColor/shadowOpacity/shadowRadius to boxShadow for RN 0.76+ web compatibility."},
+      {"component": "router.back() on deep-link /scan", "issue": "Console warning: 'The action GO_BACK was not handled by any navigator' fires when save-supplement (or scan-close) is pressed after opening /scan directly (no history). Not a runtime bug — but consider `router.canGoBack() ? router.back() : router.replace('/stash')` in /app/frontend/app/scan.tsx to avoid the console error."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_health.py",
+    "/app/backend/tests/test_protocol.py",
+    "/app/backend/tests/test_ocr.py",
+    "/app/backend/tests/test_bloodtest.py",
+    "/app/test_reports/pytest/iteration_2.xml"
+  ],
+  "action_items": [
+    "(Low priority, carry-over) Fix RN web deprecations: `transform-origin` → `transformOrigin` in ReadinessRing SVG style; replace `pointerEvents=` prop usage with `style={{ pointerEvents: ... }}`; migrate `shadow*` styles to `boxShadow` on Card/FAB/ScreenHeader.",
+    "(Nit) In /app/frontend/app/scan.tsx, guard router.back() with router.canGoBack() to eliminate the GO_BACK dev warning when /scan is deep-linked."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py — LLM streaming still lacks a hard timeout wrapper (asyncio.wait_for). Emergent LLM latency is bounded in practice but a hung upstream would block the FastAPI worker.",
+    "backend/server.py — hardcoded model names ('gpt-5.4', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview'); consider env-driven for easy rollback.",
+    "Cabinet uses soft delete (deletedAt); the 'removed' toast copy is fine but Undo would be nice.",
+    "protocolEngine / dashboardCards guardrails and blood-test flags are all client-side and deterministic — good separation."
+  ],
+  "updated_files": ["/app/backend/tests/test_bloodtest.py (new)"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (all requested testIDs verified — including previously-flaky start-breath-pacer navigation which now works reliably)"},
+  "seed_data_creation": "Manual-add flow inserted 'TEST_Nordic / TEST_Omega3 (Triglyceride, 1000mg/softgel, 60 stock)' via /scan → save-supplement. Persisted in AsyncStorage; visible in Cabinet.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests: `pytest /app/backend/tests -v --junitxml=/app/test_reports/pytest/iteration_N.xml`. 8 tests, ~30s. Requires Pillow + pytest-timeout (already installed). Uses EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env. Frontend testIDs are stable and comprehensive (see iteration_1 report list) plus new: mode-{auto,travel,illness,deload}, streak-card, streak-count, guardrail-card, low-stock-card, reorder-<id>, bloodwork-card, clear-bloodwork, missing-item-card, missing-item-buy, panel-segmented + seg-{supplement,bloodtest}, blood-camera, blood-library, blood-results, blood-done. Use viewport 390x844, force=True on clicks, and hit /stash, /trends, /settings, /scan, /breath by direct URL (bottom tabs don't expose href attributes on web preview). Preset flow: settings → preset-run-acute_stress → dashboard shows stress-banner + start-breath-pacer navigates to /breath; preset-run-rest_balanced → zero-pill-card.",
+  "rca_of_issue": "N/A - no functional bugs. All 4 new features (streak card, guardrails, mode selector, blood-test import) render and integrate correctly. Cabinet crash from undefined ChipRow is fixed (ChipRow imported and rendered as stash-filter-row / region-row without runtime errors)."
+}

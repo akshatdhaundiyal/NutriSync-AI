@@ -2,13 +2,16 @@ import { canonicalize, formQuality } from "@/src/data/compounds";
 import { MOCK_LABELS } from "@/src/data/mockData";
 import {
   buildProtocol,
+  Deficiency,
   mockRecommendations,
 } from "@/src/services/protocolEngine";
 import {
   AIProvider,
   Baselines,
+  BloodMarker,
   ExtractedLabel,
   Protocol,
+  ProtocolMode,
   Readiness,
   RecommendationSet,
   Region,
@@ -43,11 +46,15 @@ function buildContext(input: {
   readiness: Readiness;
   stash: StashItem[];
   region: Region;
+  mode: ProtocolMode;
+  deficiencies: Deficiency[];
 }) {
   return {
     region: input.region,
+    mode: input.mode,
     readiness: input.readiness,
     baselines: input.baselines,
+    labDeficiencies: input.deficiencies,
     today: {
       deepSleepMin: input.today.deepSleepMin,
       hrvMs: input.today.hrvMs,
@@ -77,6 +84,8 @@ Rules:
 - Never recommend more than 3 supplements per day.
 - If readiness is optimal (high HRV, good deep sleep, low strain) set zeroPill=true, recommendations=[] and give a wholeFoodNote.
 - Prefer chelated / bioavailable chemical forms.
+- If a "mode" is provided (travel/illness/deload), tailor the whole stack to that context.
+- If "labDeficiencies" are provided, prioritize correcting them first.
 - Slots must be one of: "morning", "post_workout", "evening".
 JSON schema:
 {"zeroPill": boolean, "wholeFoodNote": string, "recommendations": [{"compound": string, "chemicalForm": string, "targetDose": number, "doseUnit": "mg"|"mcg"|"g"|"IU"|"serving", "slot": string, "rationale": string, "window": string, "foodAlternatives": string[]}]}`;
@@ -148,11 +157,23 @@ export async function generateProtocol(input: {
   readiness: Readiness;
   stash: StashItem[];
   region: Region;
+  mode: ProtocolMode;
+  deficiencies: Deficiency[];
   keys: { gemini: string; openai: string };
   date: string;
 }): Promise<Protocol> {
-  const { provider, today, baselines, readiness, stash, region, keys, date } =
-    input;
+  const {
+    provider,
+    today,
+    baselines,
+    readiness,
+    stash,
+    region,
+    mode,
+    deficiencies,
+    keys,
+    date,
+  } = input;
 
   const finalize = (recSet: RecommendationSet, generatedBy: string) =>
     buildProtocol(recSet, {
@@ -166,13 +187,21 @@ export async function generateProtocol(input: {
 
   if (provider === "mock") {
     return finalize(
-      mockRecommendations({ today, readiness }),
+      mockRecommendations({ today, readiness, mode, deficiencies }),
       PROVIDER_LABEL.mock,
     );
   }
 
   try {
-    const context = buildContext({ today, baselines, readiness, stash, region });
+    const context = buildContext({
+      today,
+      baselines,
+      readiness,
+      stash,
+      region,
+      mode,
+      deficiencies,
+    });
     let recSet: RecommendationSet;
     if (provider === "gemini-direct") {
       if (!keys.gemini) throw new Error("missing gemini key");
@@ -188,10 +217,19 @@ export async function generateProtocol(input: {
     if (!recSet || !Array.isArray(recSet.recommendations)) {
       throw new Error("invalid recommendation set");
     }
+    // Preserve the "from your labs" provenance even on the AI path.
+    const defSet = new Set(deficiencies.map((d) => d.canonical));
+    recSet.recommendations = recSet.recommendations.map((r) => {
+      const canonical = r.canonical || canonicalize(r.compound);
+      return { ...r, canonical, tag: defSet.has(canonical) ? "lab" : r.tag };
+    });
     return finalize(recSet, PROVIDER_LABEL[provider]);
   } catch (e) {
     // Self-contained fallback: never dead-end the user.
-    return finalize(mockRecommendations({ today, readiness }), "Offline fallback");
+    return finalize(
+      mockRecommendations({ today, readiness, mode, deficiencies }),
+      "Offline fallback",
+    );
   }
 }
 
@@ -323,5 +361,108 @@ export async function extractLabel(input: {
     return mockExtract();
   } catch {
     return mockExtract();
+  }
+}
+
+// ---- Blood panel OCR ----
+
+const BLOOD_PROMPT = `Extract blood-panel biomarkers from this lab report image as STRICT JSON only:
+{"markers":[{"name": string, "value": number, "unit": string, "status": "low"|"normal"|"high"}]}
+Include ferritin, vitamin D (25-OH), magnesium and vitamin B12 when present. status is relative to the standard reference range.`;
+
+function markersFromRaw(raw: any): BloodMarker[] {
+  const arr = Array.isArray(raw?.markers) ? raw.markers : [];
+  return arr
+    .map((m: any) => ({
+      name: String(m.name ?? "Marker"),
+      canonical: canonicalize(String(m.name ?? "")),
+      value: Number(m.value) || 0,
+      unit: String(m.unit ?? ""),
+      status: (["low", "normal", "high"].includes(m.status)
+        ? m.status
+        : "normal") as BloodMarker["status"],
+    }))
+    .filter((m: BloodMarker) => !!m.name);
+}
+
+function mockBloodMarkers(): BloodMarker[] {
+  return [
+    { name: "Ferritin", canonical: "iron", value: 22, unit: "ng/mL", status: "low" },
+    { name: "Vitamin D (25-OH)", canonical: "vitamin-d3", value: 24, unit: "ng/mL", status: "low" },
+    { name: "Magnesium (RBC)", canonical: "magnesium", value: 4.1, unit: "mg/dL", status: "low" },
+    { name: "Vitamin B12", canonical: "vitamin-b12", value: 512, unit: "pg/mL", status: "normal" },
+  ];
+}
+
+async function geminiBlood(base64: string, mime: string, key: string): Promise<BloodMarker[]> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        { parts: [{ text: BLOOD_PROMPT }, { inlineData: { mimeType: mime, data: base64 } }] },
+      ],
+      generationConfig: { responseMimeType: "application/json" },
+    }),
+  });
+  if (!res.ok) throw new Error(`gemini blood ${res.status}`);
+  const json = await res.json();
+  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return markersFromRaw(extractJson(text));
+}
+
+async function openaiBlood(base64: string, mime: string, key: string): Promise<BloodMarker[]> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: BLOOD_PROMPT },
+            { type: "image_url", image_url: { url: `data:${mime};base64,${base64}` } },
+          ],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`openai blood ${res.status}`);
+  const json = await res.json();
+  const text = json?.choices?.[0]?.message?.content ?? "";
+  return markersFromRaw(extractJson(text));
+}
+
+async function emergentBlood(base64: string, mime: string): Promise<BloodMarker[]> {
+  const res = await fetch(`${BACKEND}/api/ai/ocr-bloodtest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_base64: base64, mime_type: mime }),
+  });
+  if (!res.ok) throw new Error(`emergent blood ${res.status}`);
+  const json = await res.json();
+  return markersFromRaw(json);
+}
+
+export async function extractBloodTest(input: {
+  base64: string;
+  mime: string;
+  provider: AIProvider;
+  keys: { gemini: string; openai: string };
+}): Promise<BloodMarker[]> {
+  const { base64, mime, provider, keys } = input;
+  try {
+    if (provider === "gemini-direct" && keys.gemini)
+      return await geminiBlood(base64, mime, keys.gemini);
+    if (provider === "openai-direct" && keys.openai)
+      return await openaiBlood(base64, mime, keys.openai);
+    if (provider === "emergent-gpt" || provider === "emergent-gemini")
+      return await emergentBlood(base64, mime);
+    return mockBloodMarkers();
+  } catch {
+    return mockBloodMarkers();
   }
 }

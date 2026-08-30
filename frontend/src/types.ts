@@ -11,6 +11,8 @@ export type ThemeMode = "dark" | "light" | "system";
 
 export type Slot = "morning" | "post_workout" | "evening";
 
+export type ProtocolMode = "auto" | "travel" | "illness" | "deload";
+
 export type QualityTier = "optimal" | "good" | "low";
 
 export type DoseUnit = "mg" | "mcg" | "g" | "IU" | "serving";
@@ -73,6 +75,7 @@ export interface Recommendation {
   rationale?: string;
   window?: string;
   foodAlternatives?: string[];
+  tag?: string;
 }
 
 export interface RecommendationSet {
@@ -105,6 +108,21 @@ export interface ProtocolItem {
   quality?: QualityTier | null;
   doseText: string;
   buyOptions?: BuyOption[];
+  tag?: string; // e.g. "lab" | "travel" — provenance of the recommendation
+}
+
+export interface BloodMarker {
+  name: string;
+  canonical: string;
+  value: number;
+  unit: string;
+  status: "low" | "normal" | "high";
+}
+
+export interface Guardrail {
+  type: "interaction" | "ceiling";
+  severity: "warn" | "danger";
+  message: string;
 }
 
 export interface Protocol {
@@ -137,6 +155,7 @@ export interface Settings {
   aiProvider: AIProvider;
   permissions: Permissions;
   activePreset: string;
+  mode: ProtocolMode;
 }
 
 export interface ExtractedLabel {

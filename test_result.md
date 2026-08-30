@@ -101,3 +101,51 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Test Run — Post UI-Redesign + 4 Feature Additions (2026-06)
+
+backend:
+  - task: "AI proxy endpoints (Emergent Universal Key)"
+    file: "/app/backend/server.py"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Re-verify /api/health, /api/ai/generate-protocol (provider gpt & gemini), /api/ai/ocr-label, /api/ai/ocr-bloodtest still respond after edits. generate-protocol body: {provider:'gpt'|'gemini', context:{...}}. OCR bodies need a real base64 image; see /app/image_testing.md."
+
+frontend:
+  - task: "Cabinet/Stash redesign (search + scan row, missing-item card, icon-tile cards)"
+    file: "/app/frontend/app/(tabs)/stash.tsx"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed crash (undefined ChipRow). New: search input (testID stash-search) filters list; scan button (stash-scan) -> /scan; 'Recommended · Not in Cabinet' card (missing-item-card) with Buy (missing-item-buy); icon-tile stash cards with quality badge, stock bar, steppers (stock-plus/minus-<id>), delete (delete-<id>). FAB removed."
+  - task: "Dashboard 4 features (streak, low-stock, guardrails, modes, bloodwork)"
+    file: "/app/frontend/app/(tabs)/index.tsx, /app/frontend/src/components/dashboardCards.tsx"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "ModeSelector (mode-auto/travel/illness/deload) changes protocol via reanalyze. StreakCard, GuardrailCard, LowStockCard (reorder-<id>), BloodworkCard render conditionally. Chrono timeline via ChronoTimeline. Sync & Re-Analyze (sync-reanalyze) + header-sync."
+  - task: "Settings / Trends / Scan / Breath still work after redesign"
+    file: "/app/frontend/app/(tabs)/settings.tsx, trends.tsx, /app/frontend/app/scan.tsx, breath.tsx"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Settings: theme segmented, region chips (re-analyze), 5 AI providers, secure key save, telemetry presets (preset-run-<id> -> re-analyze), health toggles. Trends: metric segmented + chart. Scan: supplement manual add + blood-test panel segmented. Breath pacer reachable from StressBanner when acute_stress preset active."
+
+metadata:
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 2
+
+test_plan:
+  current_focus:
+    - "Cabinet/Stash redesign"
+    - "Dashboard 4 features"
+    - "Settings / Trends / Scan / Breath regression"
+    - "Backend AI proxy endpoints"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Completed clinical-light Material-3 UI redesign (Dashboard + Cabinet) and fixed a Cabinet crash. All 4 previously-added features (adherence streak, low-stock reorder, interaction guardrails, Travel/Illness/Deload modes, blood-test import) are wired but were never tested. App has NO auth. Default AI provider is offline Mock (client-side). To exercise Emergent backend paths, switch provider in Settings or curl endpoints directly. Please test both backend endpoints and all frontend flows."

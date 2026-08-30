@@ -16,11 +16,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { QualityBadge } from "@/src/components/QualityBadge";
 import { useToast } from "@/src/components/ToastProvider";
-import { AppButton, Chip, Segmented } from "@/src/components/ui";
+import { AppButton, Card, Chip, Segmented } from "@/src/components/ui";
 import { canonicalize, formQuality } from "@/src/data/compounds";
 import { useStore } from "@/src/store/useStore";
 import { useTheme } from "@/src/theme/useTheme";
-import { DoseUnit, UnitType } from "@/src/types";
+import { DoseUnit, UnitType, BloodMarker } from "@/src/types";
 import { success, tap } from "@/src/utils/haptics";
 
 const UNIT_TYPES: UnitType[] = ["capsule", "softgel", "tablet", "scoop", "gummy"];
@@ -40,6 +40,9 @@ export default function ScanScreen() {
 
   const scanLabel = useStore((s) => s.scanLabel);
   const addStashItem = useStore((s) => s.addStashItem);
+  const importBloodTest = useStore((s) => s.importBloodTest);
+
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)/stash"));
 
   const [camPerm, requestCamPerm] = ImagePicker.useCameraPermissions();
 
@@ -53,6 +56,9 @@ export default function ScanScreen() {
   const [stock, setStock] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanSource, setScanSource] = useState<string | null>(null);
+  const [panel, setPanel] = useState<"supplement" | "bloodtest">("supplement");
+  const [scanningBlood, setScanningBlood] = useState(false);
+  const [bloodResults, setBloodResults] = useState<BloodMarker[]>([]);
 
   const quality = chemicalForm ? formQuality(chemicalForm) : null;
 
@@ -143,7 +149,61 @@ export default function ScanScreen() {
     });
     success();
     toast.show(`${pname.trim()} added to stash`);
-    router.back();
+    goBack();
+  };
+
+  const handleBlood = async (result: ImagePicker.ImagePickerResult) => {
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.base64) {
+      toast.show("Could not read image", "error");
+      return;
+    }
+    setScanningBlood(true);
+    try {
+      const markers = await importBloodTest(asset.base64, asset.mimeType || "image/jpeg");
+      setBloodResults(markers);
+      success();
+      const lowN = markers.filter((m) => m.status === "low").length;
+      toast.show(
+        lowN > 0 ? `${lowN} low marker${lowN > 1 ? "s" : ""} added to protocol` : "Bloodwork imported",
+      );
+    } finally {
+      setScanningBlood(false);
+    }
+  };
+
+  const onScanBlood = async () => {
+    tap();
+    if (!camPerm?.granted) {
+      const res = await requestCamPerm();
+      if (!res.granted) {
+        if (!res.canAskAgain) {
+          toast.show("Enable camera in Settings to scan", "error");
+          Linking.openSettings();
+        } else {
+          toast.show("Camera access needed to scan a report", "error");
+        }
+        return;
+      }
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      base64: true,
+      quality: 0.4,
+      allowsEditing: true,
+    });
+    await handleBlood(result);
+  };
+
+  const onPickBlood = async () => {
+    tap();
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      base64: true,
+      quality: 0.4,
+      allowsEditing: true,
+    });
+    await handleBlood(result);
   };
 
   const inputStyle = {
@@ -187,7 +247,7 @@ export default function ScanScreen() {
         <Pressable
           testID="scan-close"
           hitSlop={10}
-          onPress={() => router.back()}
+          onPress={() => goBack()}
           style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceTertiary }}
         >
           <Ionicons name="close" size={20} color={colors.text} />
@@ -199,6 +259,26 @@ export default function ScanScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxxl + insets.bottom }}
       >
+        <Segmented
+          testID="panel-segmented"
+          value={panel}
+          onChange={(v) => setPanel(v as "supplement" | "bloodtest")}
+          options={[
+            { label: "Supplement", value: "supplement", icon: "cube" },
+            { label: "Blood Test", value: "bloodtest", icon: "water" },
+          ]}
+        />
+
+        {panel === "bloodtest" ? (
+          <BloodPanel
+            scanning={scanningBlood}
+            markers={bloodResults}
+            onScan={onScanBlood}
+            onPick={onPickBlood}
+            onDone={() => goBack()}
+          />
+        ) : (
+        <View style={{ marginTop: spacing.lg }}>
         {/* scan actions */}
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <ScanAction icon="camera" label="Scan Label" onPress={onScan} testID="scan-camera" />
@@ -290,6 +370,8 @@ export default function ScanScreen() {
         <View style={{ marginTop: spacing.xl }}>
           <AppButton testID="save-supplement" label="Add to Cabinet" icon="add-circle" onPress={onSave} />
         </View>
+        </View>
+        )}
       </KeyboardAwareScrollView>
     </View>
   );
@@ -340,5 +422,106 @@ function ScanAction({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+function BloodPanel({
+  scanning,
+  markers,
+  onScan,
+  onPick,
+  onDone,
+}: {
+  scanning: boolean;
+  markers: BloodMarker[];
+  onScan: () => void;
+  onPick: () => void;
+  onDone: () => void;
+}) {
+  const { colors, font, fontSize, spacing } = useTheme();
+  const statusColor = (s: BloodMarker["status"]) =>
+    s === "low" ? colors.warning : s === "high" ? colors.danger : colors.textMuted;
+
+  return (
+    <View style={{ marginTop: spacing.lg }}>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <ScanAction icon="camera" label="Scan Panel" onPress={onScan} testID="blood-camera" />
+        <ScanAction icon="images" label="From Photos" onPress={onPick} testID="blood-library" />
+      </View>
+
+      {scanning ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: spacing.md }}>
+          <ActivityIndicator color={colors.brand} />
+          <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: fontSize.sm }}>
+            Reading your blood panel…
+          </Text>
+        </View>
+      ) : null}
+
+      {markers.length === 0 && !scanning ? (
+        <Text
+          style={{
+            color: colors.textFaint,
+            fontFamily: font.regular,
+            fontSize: fontSize.xs,
+            marginTop: spacing.md,
+          }}
+        >
+          Snap a lab report — low ferritin, vitamin D or magnesium auto-flow into today’s protocol.
+        </Text>
+      ) : null}
+
+      {markers.length > 0 ? (
+        <Card testID="blood-results" style={{ marginTop: spacing.lg }}>
+          <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: fontSize.md, marginBottom: spacing.sm }}>
+            Detected Biomarkers
+          </Text>
+          {markers.map((m, i) => (
+            <View
+              key={m.name + i}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingVertical: 7,
+                borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth,
+                borderTopColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontFamily: font.regular, fontSize: fontSize.sm, flex: 1 }} numberOfLines={1}>
+                {m.name}
+              </Text>
+              <Text style={{ color: colors.textMuted, fontFamily: font.mono, fontSize: fontSize.sm, marginRight: 10 }}>
+                {m.value}
+                {m.unit ? ` ${m.unit}` : ""}
+              </Text>
+              <View
+                style={{
+                  backgroundColor: statusColor(m.status) + "22",
+                  borderRadius: 999,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                }}
+              >
+                <Text style={{ color: statusColor(m.status), fontFamily: font.medium, fontSize: fontSize.xs }}>
+                  {m.status === "low" ? "Low" : m.status === "high" ? "High" : "Normal"}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
+      {markers.length > 0 ? (
+        <View style={{ marginTop: spacing.lg }}>
+          <AppButton
+            testID="blood-done"
+            label="Done — applied to protocol"
+            icon="checkmark-circle"
+            onPress={onDone}
+          />
+        </View>
+      ) : null}
+    </View>
   );
 }

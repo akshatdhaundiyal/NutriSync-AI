@@ -2,7 +2,9 @@ import * as Localization from "expo-localization";
 import { create } from "zustand";
 
 import { DEFAULT_STASH, buildTelemetry } from "@/src/data/mockData";
-import { extractLabel, generateProtocol } from "@/src/services/ai";
+import { COMPOUNDS } from "@/src/data/compounds";
+import { extractBloodTest, extractLabel, generateProtocol } from "@/src/services/ai";
+import { Deficiency } from "@/src/services/protocolEngine";
 import {
   computeBaselines,
   computeReadiness,
@@ -16,9 +18,11 @@ import { storage } from "@/src/utils/storage";
 import {
   AIProvider,
   Baselines,
+  BloodMarker,
   ExtractedLabel,
   IntakeLog,
   Protocol,
+  ProtocolMode,
   Readiness,
   Region,
   Settings,
@@ -36,6 +40,7 @@ const DEFAULT_SETTINGS: Settings = {
   aiProvider: "mock",
   permissions: { sleep: false, hrv: false, workouts: false },
   activePreset: "heavy_leg_day",
+  mode: "auto",
 };
 
 const EU_CODES = new Set([
@@ -76,6 +81,8 @@ interface AppState {
   protocol: Protocol | null;
   generating: boolean;
   keys: { gemini: string; openai: string };
+  adherenceDates: string[];
+  bloodMarkers: BloodMarker[];
 
   hydrate: () => Promise<void>;
   reanalyze: () => Promise<void>;
@@ -83,6 +90,7 @@ interface AppState {
   setRegion: (r: Region) => Promise<void>;
   setProvider: (p: AIProvider) => Promise<void>;
   setPermission: (k: keyof Settings["permissions"], v: boolean) => Promise<void>;
+  setMode: (m: ProtocolMode) => Promise<void>;
   applyPreset: (id: string) => Promise<void>;
   addStashItem: (item: StashItem) => Promise<void>;
   updateStashItem: (item: StashItem) => Promise<void>;
@@ -91,10 +99,39 @@ interface AppState {
   toggleIntake: (slot: Slot, canonical: string) => Promise<void>;
   saveKey: (which: "gemini" | "openai", value: string) => Promise<void>;
   scanLabel: (base64: string, mime: string) => Promise<ExtractedLabel>;
+  importBloodTest: (base64: string, mime: string) => Promise<BloodMarker[]>;
+  clearBloodMarkers: () => Promise<void>;
 }
 
 async function persistSettings(s: Settings) {
   await storage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+function deficienciesFrom(markers: BloodMarker[]): Deficiency[] {
+  return markers
+    .filter((m) => m.status === "low" && !!COMPOUNDS[m.canonical])
+    .map((m) => ({ canonical: m.canonical, name: m.name, value: m.value, unit: m.unit }));
+}
+
+// A day is "adhered" when it's a zero-pill day OR every active item was taken.
+function computeAdherenceDates(
+  protocol: Protocol | null,
+  intake: IntakeLog[],
+  adherenceDates: string[],
+  day: string,
+): string[] {
+  const complete = protocol
+    ? protocol.zeroPill ||
+      (protocol.items.length > 0 &&
+        protocol.items.every(
+          (it) =>
+            intake.find((i) => i.id === `${day}:${it.slot}:${it.canonical}`)?.taken,
+        ))
+    : false;
+  const set = new Set(adherenceDates);
+  if (complete) set.add(day);
+  else set.delete(day);
+  return [...set];
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -108,6 +145,8 @@ export const useStore = create<AppState>((set, get) => ({
   protocol: null,
   generating: false,
   keys: { gemini: "", openai: "" },
+  adherenceDates: [],
+  bloodMarkers: [],
 
   hydrate: async () => {
     await initDb();
@@ -138,20 +177,33 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const intake = (await getCollection<IntakeLog[]>("intake", [])) || [];
+    const adherenceDates = (await getCollection<string[]>("adherence", [])) || [];
+    const bloodMarkers =
+      (await getCollection<BloodMarker[]>("bloodMarkers", [])) || [];
     const keys = await loadKeys();
 
-    set({ settings, stash, telemetry, intake, keys, hydrated: true });
+    set({
+      settings,
+      stash,
+      telemetry,
+      intake,
+      adherenceDates,
+      bloodMarkers,
+      keys,
+      hydrated: true,
+    });
     await get().reanalyze();
   },
 
   reanalyze: async () => {
     set({ generating: true });
-    const { telemetry, settings, stash } = get();
+    const { telemetry, settings, stash, bloodMarkers } = get();
     const date = todayISO();
     const today = telemetry[telemetry.length - 1];
     const baselines = computeBaselines(telemetry, today.date);
     const readiness = computeReadiness(today, baselines);
     const keys = await loadKeys();
+    const deficiencies = deficienciesFrom(bloodMarkers);
 
     const protocol: Protocol = await generateProtocol({
       provider: settings.aiProvider,
@@ -160,11 +212,21 @@ export const useStore = create<AppState>((set, get) => ({
       readiness,
       stash,
       region: settings.region,
+      mode: settings.mode,
+      deficiencies,
       keys,
       date,
     });
 
-    set({ baselines, readiness, protocol, generating: false, keys });
+    const adherenceDates = computeAdherenceDates(
+      protocol,
+      get().intake,
+      get().adherenceDates,
+      date,
+    );
+
+    set({ baselines, readiness, protocol, generating: false, keys, adherenceDates });
+    await setCollection("adherence", adherenceDates);
   },
 
   setThemeMode: async (themeMode) => {
@@ -194,6 +256,13 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set({ settings });
     await persistSettings(settings);
+  },
+
+  setMode: async (mode) => {
+    const settings = { ...get().settings, mode };
+    set({ settings });
+    await persistSettings(settings);
+    await get().reanalyze();
   },
 
   applyPreset: async (id) => {
@@ -278,10 +347,18 @@ export const useStore = create<AppState>((set, get) => ({
       idx === get().telemetry.length - 1 ? { ...t, intake: anyTaken } : t,
     );
 
-    set({ intake, stash, telemetry });
+    const adherenceDates = computeAdherenceDates(
+      get().protocol,
+      intake,
+      get().adherenceDates,
+      date,
+    );
+
+    set({ intake, stash, telemetry, adherenceDates });
     await setCollection("intake", intake);
     await setCollection("stash", stash);
     await setCollection("telemetry", telemetry);
+    await setCollection("adherence", adherenceDates);
   },
 
   saveKey: async (which, value) => {
@@ -297,5 +374,25 @@ export const useStore = create<AppState>((set, get) => ({
       provider: settings.aiProvider,
       keys,
     });
+  },
+
+  importBloodTest: async (base64, mime) => {
+    const { settings, keys } = get();
+    const markers = await extractBloodTest({
+      base64,
+      mime,
+      provider: settings.aiProvider,
+      keys,
+    });
+    set({ bloodMarkers: markers });
+    await setCollection("bloodMarkers", markers);
+    await get().reanalyze();
+    return markers;
+  },
+
+  clearBloodMarkers: async () => {
+    set({ bloodMarkers: [] });
+    await setCollection("bloodMarkers", []);
+    await get().reanalyze();
   },
 }));

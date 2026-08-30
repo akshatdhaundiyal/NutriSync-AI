@@ -43,13 +43,19 @@ Build "NutriSync AI", a modern, 100% client-side React Native + Expo mobile app.
 - [x] Backend Emergent proxy (generate-protocol + ocr-label). Verified live (GPT-5.4, Gemini 3.1 Pro, Gemini 3 Flash).
 - [x] Full test pass: backend 6/6 pytest PASS; all frontend flows verified.
 
+## Implemented — Wave 2 (2026-06)
+- [x] Material-3 clinical-light redesign: emerald/indigo/crimson palette, Hanken Grotesk (display/headline) + Inter (body), rounded soft-shadow data cards, floating pill bottom-nav, avatar header, readiness hero + metric pills, vertical chrono timeline with circular nodes + connector.
+- [x] Cabinet redesign: search bar (`stash-search`) + green scan button (`stash-scan`), "Recommended · Not in Cabinet" procurement card (`missing-item-card`/`missing-item-buy`), icon-tile stash cards with quality badges, stock steppers, soft-delete. FAB removed.
+- [x] P1 Stack adherence streak (StreakCard: current + best + today status).
+- [x] P1 Low-stock reorder card (LowStockCard → region merchant buy links).
+- [x] P1 Interaction / daily-ceiling guardrails (guardrails.ts + UPPER_LIMITS/INTERACTIONS).
+- [x] P2 Travel / Illness / Deload protocol modes (ModeSelector → protocol engine).
+- [x] P2 Blood-test panel import (OCR /api/ai/ocr-bloodtest) → low markers auto-flag deficiencies into protocol (BloodworkCard).
+- [x] Scan modal: guarded router.back() with canGoBack() fallback to /(tabs)/stash.
+- [x] Test Iteration 2: backend 8/8 pytest PASS; all frontend flows + testIDs verified e2e; Cabinet crash fixed; breath-pacer navigation confirmed reliable.
+
 ## Backlog (prioritized)
-- P1: Stack adherence streak + in-app low-stock reorder cards.
-- P1: Supplement interaction / daily-ceiling guardrail warnings (anti-overdose depth).
-- P2: Travel / illness / deload protocol modes.
-- P2: Blood-test panel import → auto-flag deficiencies into protocol.
-- P2: Migrate RN-web-deprecated style props (pointerEvents, shadow*, useNativeDriver) — cosmetic.
-- P2: Verify StressBanner→/breath router.push in a native/production build (works via route + direct URL).
+- P2: Migrate RN-web-deprecated style props (pointerEvents, shadow*, transformOrigin) — cosmetic, web-only warnings; native unaffected.
 
 ## Next Tasks
-- Await user direction on backlog; recommend adherence streak + interaction guardrails next.
+- Await user direction. Redesign + all 4 backlog features complete and tested.

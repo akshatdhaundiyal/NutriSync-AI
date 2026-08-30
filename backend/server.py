@@ -69,6 +69,14 @@ OCR_PROMPT = (
     "dosePerUnit is the elemental amount per single capsule/scoop."
 )
 
+BLOOD_PROMPT = (
+    "Extract blood-panel biomarkers from this lab report image as STRICT JSON only:\n"
+    '{"markers":[{"name": string, "value": number, "unit": string, '
+    '"status": "low"|"normal"|"high"}]}\n'
+    "Include ferritin, vitamin D (25-OH), magnesium and vitamin B12 when present. "
+    "status is relative to the standard reference range."
+)
+
 
 class ProtocolRequest(BaseModel):
     provider: str  # "gpt" | "gemini"
@@ -165,6 +173,30 @@ async def ocr_label(req: OcrRequest):
     except Exception as e:  # noqa: BLE001
         logger.error(f"ocr failed: {e}")
         raise HTTPException(status_code=502, detail="ocr failed")
+
+    return data
+
+
+@api_router.post("/ai/ocr-bloodtest")
+async def ocr_bloodtest(req: OcrRequest):
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=500, detail="LLM key not configured")
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"blood-{uuid.uuid4()}",
+        system_message="You extract structured biomarkers from blood-test lab reports.",
+    ).with_model("gemini", "gemini-3-flash-preview")
+
+    image = ImageContent(image_base64=req.image_base64)
+    try:
+        text = await _collect(
+            chat, UserMessage(text=BLOOD_PROMPT, file_contents=[image])
+        )
+        data = _strip_json(text)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"blood ocr failed: {e}")
+        raise HTTPException(status_code=502, detail="blood ocr failed")
 
     return data
 

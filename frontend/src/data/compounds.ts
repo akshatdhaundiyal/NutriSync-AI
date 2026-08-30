@@ -134,7 +134,66 @@ export const COMPOUNDS: Record<string, CompoundDef> = {
     foods: ["Sea salt + water", "Coconut water", "Bananas"],
     keywords: ["electrolyte", "lmnt", "salt"],
   },
+  iron: {
+    canonical: "iron",
+    label: "Iron",
+    defaultForm: "Bisglycinate",
+    doseUnit: "mg",
+    defaultTarget: 18,
+    slot: "morning",
+    window: "Morning, with vitamin C, empty stomach",
+    foods: ["Red meat", "Lentils", "Spinach + citrus"],
+    keywords: ["iron", "ferritin", "ferrous"],
+  },
+  "vitamin-b12": {
+    canonical: "vitamin-b12",
+    label: "Vitamin B12",
+    defaultForm: "Methylcobalamin",
+    doseUnit: "mcg",
+    defaultTarget: 1000,
+    slot: "morning",
+    window: "Morning, sublingual",
+    foods: ["Eggs", "Salmon", "Nutritional yeast"],
+    keywords: ["b12", "cobalamin", "b-12", "methylcobalamin"],
+  },
 };
+
+// Safe supplemental daily ceilings (upper limits) — anti-overdose guardrails.
+export const UPPER_LIMITS: Record<
+  string,
+  { max: number; unit: string; note?: string }
+> = {
+  magnesium: { max: 350, unit: "mg", note: "supplemental elemental magnesium" },
+  zinc: { max: 40, unit: "mg" },
+  "vitamin-d3": { max: 4000, unit: "IU" },
+  "vitamin-c": { max: 2000, unit: "mg" },
+  iron: { max: 45, unit: "mg" },
+};
+
+// Absorption-competition pairs — warn when both land in the same day's stack.
+export const INTERACTIONS: { a: string; b: string; message: string }[] = [
+  {
+    a: "zinc",
+    b: "magnesium",
+    message:
+      "Zinc + Magnesium compete for the same transporters — space them at least 2 hours apart.",
+  },
+  {
+    a: "zinc",
+    b: "iron",
+    message: "Zinc + Iron compete for uptake — take at different meals.",
+  },
+  {
+    a: "iron",
+    b: "magnesium",
+    message: "Iron absorbs best away from Magnesium — separate by 2 hours.",
+  },
+  {
+    a: "iron",
+    b: "vitamin-d3",
+    message: "Take Iron away from fat-soluble D3 for cleaner absorption.",
+  },
+];
 
 const OPTIMAL_FORMS = [
   "glycinate",
