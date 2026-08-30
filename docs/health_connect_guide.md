@@ -1,283 +1,105 @@
-# NutriSync AI — Android Health Connect Native Integration & Testing Guide
+# NutriSync AI — Android Health Connect guide
 
-This guide explains how to build, install, and test NutriSync AI with **native Android Health Connect** using an Expo Development Client (`expo-dev-client`).
+This is the current procedure for installing NutriSync AI on a physical Android device and connecting it to Health Connect. The app uses `react-native-health-connect` v4.1.3 and must run in a native development build; **Expo Go cannot load this native module**.
 
-It also documents every environment fix applied during our first successful build, so future developers can reproduce the setup from scratch.
+## What you need
 
----
+- An Android phone running Android 9 (API 28) or newer, with Google Play services. Health Connect cannot run in a work profile.
+- A screen lock (PIN, pattern, or password). Health Connect requires one.
+- USB debugging enabled, a USB cable, and Android Platform Tools (`adb`) on the computer.
+- Android Studio's JDK and Android SDK installed for a local build. NutriSync compiles and targets API 36.
+- Node dependencies installed in `frontend` (`npm ci` when a clean install is required).
 
-## 1. Why Standard Expo Go Cannot Be Used
+Health Connect is part of Android Settings on Android 14 and later. On Android 13 and earlier, install the **Health Connect** app from Google Play first. The device used for this project is Android 16, so it already has the system Health Connect provider.
 
-Google Health Connect requires:
-- Native Android permissions (`android.permission.health.*`) declared in `AndroidManifest.xml`.
-- Native SDK bindings (`react-native-health-connect`).
-- Intent filters for permission dialogues and privacy policy display.
+## Health Connect configuration in this project
 
-Because Expo Go has a fixed, pre-compiled set of native modules, testing Health Connect requires an **Expo Development Build**.
+- The Expo config plugin is `react-native-health-connect`. Version 4 includes the Expo plugin; do **not** install the deprecated `expo-health-connect` package alongside it.
+- The app requests only the record types it syncs: sleep, HRV, resting heart rate, steps, exercise sessions, and total calories.
+- The generated manifest includes the required Android 13-and-lower permission-rationale intent and Android 14+ `ViewPermissionUsageActivity` alias. Regenerate native files with `npx expo prebuild --platform android` after changing `app.json`; do not manually duplicate these entries.
+- Health Connect permissions can change at any time. NutriSync checks availability and requests them when **Sync Live Data Now** is used.
+- The app reads the last 14 days. It does not need the optional `READ_HEALTH_DATA_HISTORY` permission, which is only needed to access records older than 30 days before the first grant.
+- The dashboard identifies the current data source and labels each displayed metric as **live**, **estimated**, or **simulated**. A live label means NutriSync read a matching Health Connect record; an estimated label means the metric was derived or fell back because no matching record was available.
+- Steps use Health Connect's duplicate-aware aggregate rather than a sum of raw records. This is important when Samsung Health, Google Fit, a watch, and/or the phone all contribute overlapping step records.
 
----
+Before distributing through Google Play, declare Health Connect data access in Play Console and make the in-app Health Connect privacy-policy destination describe the data use accurately. The required manifest intent is already present, but policy content and Play declarations remain release work.
 
-## 2. Device Prerequisites
+## Run on a USB-connected phone
 
-### A. Android Version Compatibility
-- **Android 14+ (API 34+)**: Health Connect is a core Android operating system component. Access it via:
-  `Settings > Security & Privacy > Health Connect`.
-- **Android 13 or lower**: Install the standalone **Health Connect** app from the Google Play Store.
+1. On the phone, enable **Developer options** and **USB debugging**, connect it, then approve the RSA debugging prompt.
 
-### B. Injecting Realistic Biometric Test Data
-To test without waiting days for wearable data to accumulate, use Google's official **Health Connect Toolbox**:
-1. Install **Health Connect Toolbox** from the Google Play Store.
-2. Open the toolbox and insert simulated historical data:
-   - **Sleep Sessions**: Insert 7–14 days of sleep stages (Deep, REM, Light).
-   - **Heart Rate Variability**: Insert nocturnal RMSSD records (e.g. 55–80 ms).
-   - **Resting Heart Rate**: Insert daily resting HR (e.g. 52–62 BPM).
-   - **Steps & Workouts**: Insert steps and exercise sessions.
+2. Verify the connection from the repository root:
 
----
-
-## 3. Build & Run Workflows
-
-### Option A: EAS Cloud Build (Recommended — No Android Studio Needed)
-
-1. **Install EAS CLI and Log In**:
-   ```bash
-   npm install -g eas-cli
-   eas login
+   ```powershell
+   adb devices
    ```
 
-2. **Trigger the Cloud Build**:
-   ```bash
+   The device must appear with the state `device`, not `unauthorized`.
+
+3. Build, install, and launch the native development app:
+
+   ```powershell
    cd frontend
-   eas build --profile development --platform android
+   npx expo run:android --device
    ```
-   *EAS will build an installable `.apk` file in the cloud.*
 
-3. **Install the APK on Your Android Device**:
-   - Download the generated `.apk` directly from the EAS build URL onto your phone and install it.
+   Choose the phone if Expo asks. This installs a debug development build and starts Metro. Keep the terminal open while developing.
 
-4. **Start the Local Development Server**:
-   ```bash
+4. For subsequent JavaScript-only changes, start the development server instead:
+
+   ```powershell
+   cd frontend
    npx expo start --dev-client
    ```
 
-5. **Open NutriSync AI on Your Phone**:
-   - Launch your installed development app, scan the Metro QR code, and connect.
+   Open the installed **NutriSync AI** app on the phone and connect it to Metro. If USB networking does not connect automatically, use:
 
----
-
-### Option B: Local USB Run (Requires Android Studio & Android SDK)
-
-#### Step 1 — Install Android Studio & SDK
-
-Install [Android Studio](https://developer.android.com/studio) and ensure the following SDK components are installed (via SDK Manager):
-- Android SDK Platform 34
-- Android SDK Build-Tools 34
-- Android SDK Platform-Tools (provides `adb`)
-
-#### Step 2 — Environment Variables
-
-The build requires three environment variables. These were permanently set in the Windows User environment during our initial setup:
-
-| Variable | Value | Notes |
-| :--- | :--- | :--- |
-| `JAVA_HOME` | `C:\Program Files\Android\Android Studio\jbr` | Android Studio's bundled OpenJDK 21 |
-| `ANDROID_HOME` | `C:\Users\akshat\AppData\Local\Android\Sdk` | Default SDK location |
-| `PATH` (appended) | `%JAVA_HOME%\bin` and `%ANDROID_HOME%\platform-tools` | Provides `java`, `javac`, and `adb` |
-
-**Set them permanently** (run once in an elevated PowerShell):
-```powershell
-[System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Android\Android Studio\jbr', 'User')
-[System.Environment]::SetEnvironmentVariable('ANDROID_HOME', 'C:\Users\akshat\AppData\Local\Android\Sdk', 'User')
-
-# Append to PATH (only if not already present):
-$currentPath = [System.Environment]::GetEnvironmentVariable('PATH', 'User')
-$javabin = 'C:\Program Files\Android\Android Studio\jbr\bin'
-$plattools = 'C:\Users\akshat\AppData\Local\Android\Sdk\platform-tools'
-if ($currentPath -notlike "*$javabin*") {
-  [System.Environment]::SetEnvironmentVariable('PATH', "$javabin;$plattools;$currentPath", 'User')
-}
-```
-
-> [!TIP]
-> After setting these permanently, **restart your terminal** for the changes to take effect.
-
-**Or set them per-session** (if you don't want to modify the system):
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-$env:ANDROID_HOME = "C:\Users\akshat\AppData\Local\Android\Sdk"
-$env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:PATH"
-```
-
-#### Step 3 — Enable USB Debugging
-
-1. On your phone: `Settings > About Phone > Tap 'Build Number' 7 times`.
-2. Go to `Settings > System > Developer Options` and enable **USB Debugging**.
-3. Connect your phone to your PC via USB and authorize the computer when prompted.
-
-#### Step 4 — Verify ADB Connection
-
-```bash
-adb devices
-```
-Ensure your device appears with `device` status (not `unauthorized`).
-
-#### Step 5 — Build & Launch
-
-```powershell
-cd frontend
-npx expo run:android
-```
-
-Or, to build the APK directly via Gradle and install manually:
-```powershell
-cd frontend/android
-.\gradlew.bat app:assembleDebug -x lint -x test
-adb install -r app\build\outputs\apk\debug\app-debug.apk
-```
-
-Then start the dev server:
-```powershell
-cd frontend
-npx expo start --dev-client
-```
-
----
-
-## 4. Troubleshooting — Issues Encountered & Fixes Applied
-
-This section documents every blocker we hit during the first build attempt and the exact fix for each.
-
-### 4.1 `JAVA_HOME is not set` (Error Code 9009)
-
-**Symptom**: Running `npx expo run:android` produced:
-```
-ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
-Error: gradlew.bat app:assembleDebug ... exited with non-zero code: 9009
-```
-
-**Root Cause**: The `JAVA_HOME` environment variable was never configured. Gradle could not locate a JDK.
-
-**Fix (two layers)**:
-
-1. **Permanent env vars** — Set `JAVA_HOME` pointing to Android Studio's bundled OpenJDK 21 at `C:\Program Files\Android\Android Studio\jbr` (see Step 2 above).
-
-2. **`gradlew.bat` auto-detection fallback** — We patched [`frontend/android/gradlew.bat`](file:///d:/lab/projects/NutriSync-AI/frontend/android/gradlew.bat) line 42 to auto-detect Android Studio's JBR if `JAVA_HOME` is not set:
-   ```batch
-   @rem Find java.exe
-   if not defined JAVA_HOME if exist "C:\Program Files\Android\Android Studio\jbr\bin\java.exe" set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
+   ```powershell
+   adb reverse tcp:8081 tcp:8081
    ```
-   This means the build will succeed even in a fresh terminal where `JAVA_HOME` hasn't been exported.
 
-3. **`gradle.properties` pinning** — Added to [`frontend/android/gradle.properties`](file:///d:/lab/projects/NutriSync-AI/frontend/android/gradle.properties):
-   ```properties
-   org.gradle.java.home=C:\\Program Files\\Android\\Android Studio\\jbr
-   ```
-   This tells the Gradle daemon itself which JDK to use, independent of the shell environment.
+5. Any change to `app.json`, a native dependency, or Android permissions requires another `npx expo run:android --device` build/install.
 
----
+## Connect and test Health Connect
 
-### 4.2 Gradle DNS / Network Failures (`dl.google.com` unreachable)
+1. On the phone, open NutriSync AI, go to **Settings**, choose **Live Health Connect**, then tap **Sync Live Data Now**.
+2. Approve only the requested Health Connect categories in the system permission screen. You can later review or revoke them in Android Settings > Security & privacy > Privacy > Health Connect > App permissions.
+3. If Health Connect reports no data, add a compatible data source such as a wearable/fitness app, or use the official **Health Connect Toolbox** to insert test records. Use test data rather than treating NutriSync's fallback values as live readings.
+4. Confirm that the dashboard says **Live Health Connect**, shows the live-measurement count and sync time, and marks individual metrics as `live` or `estimated`.
 
-**Symptom**: After fixing JAVA_HOME, Gradle started but failed to resolve Maven dependencies:
-```
-Could not resolve com.android.tools.build:gradle:8.x.x
-> Could not resolve dl.google.com
-```
+### Step totals and source selection
 
-**Root Cause**: The local Wi-Fi router was blocking outbound UDP port 53 to static DNS servers (like `8.8.8.8`). Gradle's JVM could not resolve `dl.google.com` or `maven.google.com`.
+NutriSync defaults to **Combined Health Connect total**. This uses Health Connect's aggregate for each daily window, which is the correct default for a total: Health Connect resolves overlapping records rather than adding Samsung Health and Google Fit entries together.
 
-**Fix (three layers)**:
+After the first live sync, Settings > Live Health Connect > **Step Count Source** lists the package IDs that contributed step data, using familiar labels where possible:
 
-#### A. Force IPv4 Stack
+- **Samsung Health** (`com.sec.android.app.shealth`)
+- **Google Fit** (`com.google.android.apps.fitness`)
+- **This phone**, when Android's on-device step source is present
 
-Added to [`frontend/android/gradle.properties`](file:///d:/lab/projects/NutriSync-AI/frontend/android/gradle.properties):
-```properties
-# Prefer IPv4 stack to prevent dl.google.com DNS/network resolution failures
-systemProp.java.net.preferIPv4Stack=true
-org.gradle.internal.http.connectionTimeout=60000
-org.gradle.internal.http.socketTimeout=60000
-```
+Choose a listed source to lock NutriSync to records written by that source only. The app re-syncs the 14-day window immediately. Use this only when you deliberately want one source; it may omit legitimate steps recorded elsewhere. Select **Combined Health Connect total** to return to the duplicate-aware total.
 
-#### B. Add Google Maven Mirror to Root Gradle Files
+On-device step attribution changed in June 2026: Android may report phone steps using a device-specific synthetic package name. NutriSync obtains origins from Health Connect at sync time and does not hard-code that identifier.
 
-Added `maven { url 'https://maven.aliyun.com/repository/google' }` as the **first** repository entry (before `google()`) in both:
+### Assessment and LLM protocol flow
 
-- [`frontend/android/settings.gradle`](file:///d:/lab/projects/NutriSync-AI/frontend/android/settings.gradle) — `pluginManagement.repositories`
-- [`frontend/android/build.gradle`](file:///d:/lab/projects/NutriSync-AI/frontend/android/build.gradle) — `buildscript.repositories` and `allprojects.repositories`
+Health Connect does not send data directly to an LLM. NutriSync first calculates a local 7-day baseline and readiness state from the synced telemetry. If an LLM provider is selected, it receives the summarized current metrics, baseline, readiness, cabinet, mode, region, and lab deficiencies to generate a supplement protocol. The local protocol builder then applies the hard limit of three active supplements and falls back to the deterministic offline engine if the LLM request fails.
 
-#### C. Patch Composite Build Repositories (Critical!)
+This is a wellness protocol recommendation feature, not a medical diagnosis. Estimated metrics are deliberately visible so they are not mistaken for a measured signal.
 
-> [!IMPORTANT]
-> Expo and React Native use **Gradle composite builds** (`includeBuild()`) for their plugins. These composite builds have their **own** `settings.gradle.kts` and `build.gradle.kts` files with independently declared repositories. Adding a mirror to your root `settings.gradle` does **NOT** propagate to composite builds.
+## Troubleshooting
 
-The following files inside `node_modules` were patched to add the mirror. **These patches will be lost on `npm install`** — see the persistence note below.
+| Symptom | Resolution |
+| --- | --- |
+| `unauthorized` in `adb devices` | Unlock the phone and accept the RSA USB-debugging prompt; then run `adb devices` again. |
+| Health Connect unavailable | Ensure the device is Android 9+ with Google Play services. On Android 13 or lower, install/update the Health Connect app; on Android 14+, update the device's system components. |
+| Native module missing | Do not use Expo Go. Rebuild and install with `npx expo run:android --device`. |
+| Permission prompt does not appear | Verify the native app was rebuilt after permission changes, then review the app in Health Connect's App permissions. Avoid repeatedly denying the same permission: Health Connect can stop showing its prompt after repeated denials. |
+| Steps seem too high | Keep **Combined Health Connect total** selected; it uses Health Connect aggregation to resolve duplicates. If you intentionally need one writer only, choose that source under **Step Count Source** and sync again. |
+| A step source is missing | Run **Sync Live Data Now** first. Only sources that contribute records to the synced 14-day window are listed. |
+| Metro cannot reach the phone | Keep the phone connected by USB and run `adb reverse tcp:8081 tcp:8081`, then restart Metro with `npx expo start --dev-client --clear`. |
+| No historical data | NutriSync only asks for the last 14 days. Health Connect normally limits third-party data to 30 days before the first grant; access older data needs the separate history permission and a user grant. |
 
-**Expo Dev Launcher** (`node_modules/expo-dev-launcher/expo-dev-launcher-gradle-plugin/`):
-- [`build.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/expo-dev-launcher/expo-dev-launcher-gradle-plugin/build.gradle.kts) — added mirror to `repositories`
+## Release note
 
-**Expo Modules Core** (`node_modules/expo-modules-core/expo-module-gradle-plugin/`):
-- [`build.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/expo-modules-core/expo-module-gradle-plugin/build.gradle.kts) — added mirror to `repositories`
-
-**Expo Modules Autolinking** (`node_modules/expo-modules-autolinking/android/expo-gradle-plugin/`):
-- [`settings.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/expo-modules-autolinking/android/expo-gradle-plugin/settings.gradle.kts) — added mirror to `pluginManagement.repositories`
-- [`expo-autolinking-settings-plugin/build.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/expo-modules-autolinking/android/expo-gradle-plugin/expo-autolinking-settings-plugin/build.gradle.kts) — added mirror to `repositories`
-- [`expo-autolinking-plugin/build.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/expo-modules-autolinking/android/expo-gradle-plugin/expo-autolinking-plugin/build.gradle.kts) — added mirror to `repositories`
-
-**React Native Gradle Plugin** (`node_modules/@react-native/gradle-plugin/`):
-- [`settings.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/@react-native/gradle-plugin/settings.gradle.kts) — added mirror
-- [`react-native-gradle-plugin/build.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build.gradle.kts) — added mirror
-- [`settings-plugin/build.gradle.kts`](file:///d:/lab/projects/NutriSync-AI/frontend/node_modules/@react-native/gradle-plugin/settings-plugin/build.gradle.kts) — added mirror
-
-> [!WARNING]
-> **Persistence after `npm install`**: These `node_modules` patches are overwritten every time you run `npm install`. If your network still has DNS issues, you need to re-apply them. Consider creating a `postinstall` script in `package.json` to automate this, or use `patch-package`:
-> ```bash
-> npx patch-package expo-modules-autolinking @react-native/gradle-plugin
-> ```
-
----
-
-### 4.3 Summary of All Modified Files
-
-| File | Change |
-| :--- | :--- |
-| [`gradlew.bat`](file:///d:/lab/projects/NutriSync-AI/frontend/android/gradlew.bat) | Auto-detect Android Studio JBR as JAVA_HOME fallback |
-| [`gradle.properties`](file:///d:/lab/projects/NutriSync-AI/frontend/android/gradle.properties) | Pinned `org.gradle.java.home`, enabled IPv4 stack, increased timeouts |
-| [`settings.gradle`](file:///d:/lab/projects/NutriSync-AI/frontend/android/settings.gradle) | Added Aliyun Google Maven mirror to `pluginManagement.repositories` |
-| [`build.gradle`](file:///d:/lab/projects/NutriSync-AI/frontend/android/build.gradle) | Added mirror to `buildscript.repositories` and `allprojects.repositories` |
-| 8× `node_modules` `.gradle.kts` files | Added mirror to composite build repositories (see §4.2C) |
-
----
-
-## 5. How Biometrics Are Mapped into NutriSync
-
-When you tap **"Sync Live Data Now"** in NutriSync Settings:
-
-| Health Connect Record | NutriSync Metric | Protocol Impact |
-| :--- | :--- | :--- |
-| **`SleepSessionRecord`** *(Stage 5 / Stage 3 NREM)* | **Deep Sleep (min)** | If < 60 min, increases evening Glycine/Apigenin and schedules GABA-ergic recovery. |
-| **`HeartRateVariabilityRmssdRecord`** | **HRV RMSSD (ms)** | Drop >10% below baseline triggers parasympathetic recovery stack (Ashwagandha, L-Theanine, Magnesium). |
-| **`RestingHeartRateRecord`** | **Resting HR (BPM)** | Elevated RHR combined with low HRV signals sympathetic dominance / acute stress. |
-| **`ExerciseSessionRecord`** | **Daily Strain (0–21)** | Workouts exceeding strain ceiling trigger post-workout phosphocreatine replenishment. |
-| **`StepsRecord`** | **Daily Steps** | Calibrates daily energy expenditure baseline. |
-
-### 14-Day Rolling History & Baselines
-- Upon initial synchronization, NutriSync queries 14 consecutive 24-hour windows.
-- The 7 days prior to today form your **personal rolling baseline**.
-- Today's metrics are compared against this 7-day baseline to compute your **Readiness Score (0–100)** and state (*Optimal*, *Recovery Needed*, or *Acute Stress*).
-
----
-
-## 6. Intelligent Metric Fallback
-
-If your wearable device only tracks a subset of metrics (for instance, Steps and Heart Rate, but not HRV RMSSD):
-- NutriSync uses your established rolling baseline or population targets for missing values.
-- A status badge in protocol insights informs you which values are live vs. baseline-projected.
-
----
-
-## 7. Known Devices Tested
-
-| Device | Identifier | Type |
-| :--- | :--- | :--- |
-| Physical Phone | `9adaee04` | USB-connected Android device |
-| Android Emulator | `emulator-5554` | Local AVD |
+The debug build is suitable for development only. A production Play release needs its own signing configuration, a current privacy policy, and the Health Connect declarations in Play Console. Do not ship the checked-in debug signing key.

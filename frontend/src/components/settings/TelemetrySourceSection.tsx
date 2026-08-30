@@ -18,16 +18,33 @@ import { useTheme } from "@/src/theme/useTheme";
 import { TelemetrySource } from "@/src/types";
 import { tap } from "@/src/utils/haptics";
 
+function stepSourceLabel(origin: string): string {
+  if (origin === "all") return "Combined Health Connect total";
+  if (origin === "com.sec.android.app.shealth") return "Samsung Health";
+  if (origin === "com.google.android.apps.fitness") return "Google Fit";
+  if (origin.startsWith("com.android.healthconnect")) return "This phone";
+  return origin;
+}
+
 export function TelemetrySourceSection() {
   const { colors, font, fontSize, radius, spacing } = useTheme();
   const toast = useToast();
 
   const settings = useStore((s) => s.settings);
+  const telemetry = useStore((s) => s.telemetry);
   const setPermission = useStore((s) => s.setPermission);
   const applyPreset = useStore((s) => s.applyPreset);
   const setTelemetrySource = useStore((s) => s.setTelemetrySource);
+  const setStepDataOrigin = useStore((s) => s.setStepDataOrigin);
 
   const [syncingSource, setSyncingSource] = useState(false);
+  const latest = telemetry[telemetry.length - 1];
+  const isHealthConnectData = latest?.source === "health_connect";
+  const liveMetricCount = ["deepSleepMin", "hrvMs", "restingHr", "steps"]
+    .filter((metric) => latest?.metricSources?.[metric as keyof NonNullable<typeof latest.metricSources>] === "live")
+    .length;
+  const stepOrigins = [...new Set(telemetry.flatMap((day) => day.stepDataOrigins ?? []))].sort();
+  const stepSourceOptions = ["all", ...stepOrigins];
 
   const sectionLabel = {
     color: colors.textMuted,
@@ -95,6 +112,24 @@ export function TelemetrySourceSection() {
                 Synchronizes live Sleep Stages, RMSSD Heart Rate Variability, Resting HR, and Workouts into your daily protocol.
               </Text>
 
+              <View
+                style={{
+                  backgroundColor: isHealthConnectData ? colors.brandSoft : colors.surfaceContainerHigh,
+                  borderRadius: radius.sm,
+                  padding: spacing.sm,
+                  gap: 2,
+                }}
+              >
+                <Text style={{ color: isHealthConnectData ? colors.brand : colors.text, fontFamily: font.semibold, fontSize: fontSize.xs }}>
+                  {isHealthConnectData ? `${liveMetricCount}/4 measurements received from Health Connect` : "No Health Connect sample stored yet"}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: fontSize.xs }}>
+                  {isHealthConnectData
+                    ? `Latest day: ${latest.date}${latest.syncedAt ? ` · synced ${new Date(latest.syncedAt).toLocaleString()}` : ""}. ${latest.stepAggregation === "source_filtered" ? `Steps are limited to ${stepSourceLabel(settings.stepDataOrigin ?? "all")}.` : "Steps use Health Connect's de-duplicated total."}`
+                    : "Sync first; the dashboard will keep showing simulator values until a live sample is received."}
+                </Text>
+              </View>
+
               <Pressable
                 testID="sync-healthconnect-now"
                 onPress={async () => {
@@ -129,6 +164,53 @@ export function TelemetrySourceSection() {
                   {syncingSource ? "Reading Biometrics…" : "Sync Live Data Now"}
                 </Text>
               </Pressable>
+            </View>
+
+            <View style={{ gap: 2 }}>
+              <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: fontSize.xs, marginBottom: 4 }}>
+                STEP COUNT SOURCE
+              </Text>
+              {stepSourceOptions.map((origin, index) => {
+                const active = (settings.stepDataOrigin ?? "all") === origin;
+                return (
+                  <SettingRow
+                    key={origin}
+                    icon={origin === "all" ? "layers" : origin.includes("shealth") ? "fitness" : "walk"}
+                    label={stepSourceLabel(origin)}
+                    sublabel={
+                      origin === "all"
+                        ? "Recommended · Health Connect de-duplicates overlapping records"
+                        : `Only records written by ${origin}`
+                    }
+                    last={index === stepSourceOptions.length - 1}
+                    onPress={async () => {
+                      if (active) return;
+                      tap();
+                      setSyncingSource(true);
+                      try {
+                        const msg = await setStepDataOrigin(origin);
+                        toast.show(msg, "success");
+                      } catch (err: any) {
+                        toast.show("Step source sync failed: " + err.message, "error");
+                      } finally {
+                        setSyncingSource(false);
+                      }
+                    }}
+                    right={
+                      <Ionicons
+                        name={active ? "radio-button-on" : "radio-button-off"}
+                        size={20}
+                        color={active ? colors.brand : colors.textFaint}
+                      />
+                    }
+                  />
+                );
+              })}
+              {stepOrigins.length === 0 ? (
+                <Text style={{ color: colors.textFaint, fontFamily: font.regular, fontSize: fontSize.xs, margin: spacing.sm }}>
+                  Sync once to discover the step sources available on this device.
+                </Text>
+              ) : null}
             </View>
 
             <View style={{ gap: 2 }}>

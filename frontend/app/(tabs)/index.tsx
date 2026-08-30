@@ -62,6 +62,7 @@ export default function DashboardScreen() {
   const adherenceDates = useStore((s) => s.adherenceDates);
   const bloodMarkers = useStore((s) => s.bloodMarkers);
   const region = useStore((s) => s.settings.region);
+  const telemetrySource = useStore((s) => s.settings.telemetrySource);
   const clearBloodMarkers = useStore((s) => s.clearBloodMarkers);
 
   const today = telemetry[telemetry.length - 1];
@@ -86,6 +87,16 @@ export default function DashboardScreen() {
   const streak = computeStreak(adherenceDates, todayKey());
   const best = computeBestStreak(adherenceDates);
   const todayComplete = adherenceDates.includes(todayKey());
+  const isHealthConnectData = today.source === "health_connect";
+  const liveMetricCount = ["deepSleepMin", "hrvMs", "restingHr", "steps"]
+    .filter((metric) => today.metricSources?.[metric as keyof NonNullable<typeof today.metricSources>] === "live")
+    .length;
+  const metricLabel = (metric: "deepSleepMin" | "hrvMs" | "strain" | "steps") =>
+    isHealthConnectData
+      ? today.metricSources?.[metric] === "live"
+        ? "live"
+        : "estimated"
+      : "simulated";
   const lowEntries: LowStockEntry[] = stash
     .filter((s) => !s.deletedAt && isLowStock(s))
     .map((s) => {
@@ -116,6 +127,31 @@ export default function DashboardScreen() {
           entering={FadeInDown.duration(400)}
           style={{ alignItems: "center", justifyContent: "center" }}
         >
+          <View
+            style={{
+              alignItems: "center",
+              gap: 4,
+              marginBottom: spacing.md,
+            }}
+          >
+            <Pill
+              label={
+                isHealthConnectData
+                  ? "Live Health Connect"
+                  : telemetrySource === "health_connect"
+                    ? "Health Connect needs sync"
+                    : "Mock Simulator"
+              }
+              color={isHealthConnectData ? colors.brand : colors.textMuted}
+              bg={isHealthConnectData ? colors.brandSoft : colors.surfaceContainerHigh}
+              icon={isHealthConnectData ? "radio-button-on" : "flask"}
+            />
+            <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: fontSize.xs }}>
+              {isHealthConnectData
+                ? `${liveMetricCount}/4 measurements live · strain is derived${today.syncedAt ? ` · synced ${new Date(today.syncedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                : "Assessment uses simulator data until a Health Connect sync completes."}
+            </Text>
+          </View>
           <ReadinessRing score={readiness.score} state={readiness.state} />
 
           {/* Stitch Health Metric Pills */}
@@ -150,7 +186,7 @@ export default function DashboardScreen() {
                   fontSize: fontSize.labelSm,
                 }}
               >
-                Deep Sleep: {fmtSleep(today.deepSleepMin)} ({readiness.deepSleepDelta > 0 ? "+" : ""}{readiness.deepSleepDelta}%)
+                Deep Sleep: {fmtSleep(today.deepSleepMin)} · {metricLabel("deepSleepMin")} ({readiness.deepSleepDelta > 0 ? "+" : ""}{readiness.deepSleepDelta}%)
               </Text>
             </View>
 
@@ -180,7 +216,7 @@ export default function DashboardScreen() {
                   fontSize: fontSize.labelSm,
                 }}
               >
-                HRV: {today.hrvMs}ms ({readiness.hrvDelta > 0 ? "+" : ""}{readiness.hrvDelta}%)
+                HRV: {today.hrvMs}ms · {metricLabel("hrvMs")} ({readiness.hrvDelta > 0 ? "+" : ""}{readiness.hrvDelta}%)
               </Text>
             </View>
 
@@ -206,7 +242,33 @@ export default function DashboardScreen() {
                   fontSize: fontSize.labelSm,
                 }}
               >
-                Strain: {today.strain}
+                Strain: {today.strain} · {metricLabel("strain")}
+              </Text>
+            </View>
+
+            {/* Steps Pill */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: colors.tertiaryContainer,
+                borderRadius: radius.pill,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.outlineVariant + "60",
+              }}
+            >
+              <Ionicons name="walk" size={14} color={colors.onTertiaryContainer} />
+              <Text
+                style={{
+                  color: colors.onTertiaryContainer,
+                  fontFamily: font.medium,
+                  fontSize: fontSize.labelSm,
+                }}
+              >
+                Steps: {today.steps.toLocaleString()} · {metricLabel("steps")}
               </Text>
             </View>
           </View>

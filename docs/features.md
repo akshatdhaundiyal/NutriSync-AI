@@ -136,9 +136,10 @@ Full customization of themes, stores, AI backends, and telemetry simulators.
 
 ### 5.3 AI Engine Configuration
 - **Offline Mock Engine (Default)**: 100% deterministic, instant on-device protocol generator.
-- **Gemini Direct**: Uses user's Google Gemini API key stored in secure hardware keychain.
-- **OpenAI Direct**: Uses user's OpenAI API key stored in secure hardware keychain.
+- **Gemini Direct**: Uses the user's Google Gemini API key stored in Android-safe secure storage.
+- **OpenAI Direct**: Uses the user's OpenAI API key stored in Android-safe secure storage.
 - **Emergent GPT-5.4 / Gemini 3.1 Pro**: Cloud proxy via Emergent Universal Key.
+- **Assessment hand-off**: NutriSync calculates baselines and readiness locally, then sends a constrained summary (current telemetry, baseline, readiness, cabinet, mode, region, and lab deficiencies) to the selected LLM for protocol generation. The result is capped at three active supplements and falls back to the deterministic engine if unavailable. It is not a clinical diagnosis.
 
 ### 5.4 Biometric Data Source Switcher
 Allows seamless switching between synthetic simulation and real-world device integration:
@@ -146,8 +147,10 @@ Allows seamless switching between synthetic simulation and real-world device int
 - **Live Health Connect**: Direct hardware integration channel with Android Health Connect service:
   - Connects to `com.google.android.apps.healthdata` in native builds (`Native Ready`).
   - Employs an intelligent dev-bridge in browser preview mode (`Bridge Mode`).
-  - Reads Sleep Stages, RMSSD Heart Rate Variability, Resting Heart Rate, and Exercise Strain.
+  - Reads Sleep Stages, RMSSD Heart Rate Variability, Resting Heart Rate, Steps, and exercise sessions; NutriSync derives strain from activity.
   - Interactive **"Sync Live Data Now"** action with real-time biometric ingestion into the recommendation engine.
+  - Shows live/estimated/simulated provenance on the dashboard, plus last-sync time and live-measurement count.
+  - Uses Health Connect aggregation for de-duplicated step totals across connected sources. Users can choose the combined total or lock steps to a discovered source such as Samsung Health or Google Fit.
 
 ### 5.5 Health Connect Permissions
 - Dedicated controls for **Sleep Stages**, **Heart Rate Variability**, and **Workouts & Strain** permissions.
@@ -161,4 +164,3 @@ Allows seamless switching between synthetic simulation and real-world device int
 - **JSON Backup Export**: One-tap download of the complete on-device database (stash, 14-day telemetry, intake history, adherence streaks, lab blood markers, settings).
 - **CSV Telemetry Export**: Download 14-day telemetry rows as CSV for spreadsheet analytics (Excel, Google Sheets).
 - **JSON Restore Modal**: In-app restoration interface to paste and recover data from prior backups.
-

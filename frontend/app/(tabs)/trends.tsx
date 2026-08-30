@@ -18,12 +18,16 @@ export default function TrendsScreen() {
   const telemetry = useStore((s) => s.telemetry);
   const baselines = useStore((s) => s.baselines);
 
-  const [metric, setMetric] = useState<"deep" | "hrv">("deep");
+  const [metric, setMetric] = useState<"deep" | "hrv" | "steps">("deep");
 
-  const data = telemetry.map((t) => (metric === "deep" ? t.deepSleepMin : t.hrvMs));
+  const valueFor = (t: (typeof telemetry)[number]) =>
+    metric === "deep" ? t.deepSleepMin : metric === "hrv" ? t.hrvMs : t.steps;
+  const data = telemetry.map(valueFor);
   const markers = telemetry.map((t) => !!t.intake);
-  const color = metric === "deep" ? colors.brand : colors.accent;
-  const unit = metric === "deep" ? "m" : "ms";
+  const color = metric === "deep" ? colors.brand : metric === "hrv" ? colors.accent : colors.tertiary;
+  const unit = metric === "deep" ? "m" : metric === "hrv" ? "ms" : "";
+  const formatValue = (value: number) =>
+    metric === "steps" ? Math.round(value).toLocaleString() : `${Math.round(value)}${unit}`;
 
   const width = Dimensions.get("window").width - spacing.containerMargin * 2 - spacing.cardPadding * 2;
   const current = data[data.length - 1] ?? 0;
@@ -31,12 +35,12 @@ export default function TrendsScreen() {
   const delta = avg ? Math.round(((current - avg) / avg) * 100) : 0;
 
   // N=1 correlation: metric on intake days vs non-intake days
-  const on = telemetry.filter((t) => t.intake).map((t) => (metric === "deep" ? t.deepSleepMin : t.hrvMs));
-  const off = telemetry.filter((t) => !t.intake).map((t) => (metric === "deep" ? t.deepSleepMin : t.hrvMs));
+  const on = telemetry.filter((t) => t.intake).map(valueFor);
+  const off = telemetry.filter((t) => !t.intake).map(valueFor);
   const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
   const lift = Math.round(mean(on) - mean(off));
 
-  const metricName = metric === "deep" ? "Deep Sleep" : "HRV";
+  const metricName = metric === "deep" ? "Deep Sleep" : metric === "hrv" ? "HRV" : "Steps";
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
@@ -54,11 +58,12 @@ export default function TrendsScreen() {
           value={metric}
           onChange={(v) => {
             tap();
-            setMetric(v as "deep" | "hrv");
+            setMetric(v as "deep" | "hrv" | "steps");
           }}
           options={[
             { label: "Deep Sleep", value: "deep", icon: "moon" },
             { label: "HRV", value: "hrv", icon: "pulse" },
+            { label: "Steps", value: "steps", icon: "walk" },
           ]}
         />
 
@@ -79,15 +84,15 @@ export default function TrendsScreen() {
             }}
           >
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.md }}>
-              <StatBlock label="Today" value={`${current}${unit}`} color={colors.text} />
-              <StatBlock label="14-day avg" value={`${avg}${unit}`} color={colors.textMuted} />
+              <StatBlock label="Today" value={formatValue(current)} color={colors.text} />
+              <StatBlock label="14-day avg" value={formatValue(avg)} color={colors.textMuted} />
               <StatBlock
                 label="vs avg"
                 value={`${delta > 0 ? "+" : ""}${delta}%`}
                 color={delta >= 0 ? colors.brand : colors.warning}
               />
             </View>
-            <LineChart width={width} data={data} markers={markers} color={color} unit={unit} />
+            <LineChart width={width} data={data} markers={markers} color={color} unit={unit} formatValue={formatValue} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
               <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: fontSize.xs }}>
@@ -140,7 +145,7 @@ export default function TrendsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontFamily: font.heading, fontSize: fontSize.bodyLg, fontWeight: "700" }}>
                   {lift > 0
-                    ? `+${lift}${unit} ${metricName} on stack days`
+                    ? `+${formatValue(Math.abs(lift))} ${metricName} on stack days`
                     : `${metricName} steady across the window`}
                 </Text>
                 <Text
@@ -153,7 +158,7 @@ export default function TrendsScreen() {
                   }}
                 >
                   {lift > 0
-                    ? `On days you logged your protocol, ${metricName.toLowerCase()} averaged ${Math.abs(lift)}${unit} higher than unsupplemented days.`
+                    ? `On days you logged your protocol, ${metricName.toLowerCase()} averaged ${formatValue(Math.abs(lift))} higher than unsupplemented days.`
                     : `Not enough separation yet — keep logging intake to sharpen your personal N=1 correlation.`}
                 </Text>
                 {baselines ? (

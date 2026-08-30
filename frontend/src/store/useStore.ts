@@ -36,12 +36,17 @@ import {
 import { syncHealthConnect } from "@/src/services/healthConnect";
 
 const SETTINGS_KEY = "settings:v2";
+const API_KEY_STORAGE = {
+  gemini: "apikey_gemini",
+  openai: "apikey_openai",
+} as const;
 
 const DEFAULT_SETTINGS: Settings = {
   themeMode: "system",
   region: "US",
   aiProvider: "mock",
   telemetrySource: "mock",
+  stepDataOrigin: "all",
   permissions: { sleep: false, hrv: false, workouts: false },
   activePreset: "heavy_leg_day",
   mode: "auto",
@@ -74,8 +79,8 @@ function todayISO(): string {
 }
 
 async function loadKeys(): Promise<{ gemini: string; openai: string }> {
-  const gemini = (await storage.secureGet<string>("apikey:gemini", "")) || "";
-  const openai = (await storage.secureGet<string>("apikey:openai", "")) || "";
+  const gemini = (await storage.secureGet<string>(API_KEY_STORAGE.gemini, "")) || "";
+  const openai = (await storage.secureGet<string>(API_KEY_STORAGE.openai, "")) || "";
   return { gemini, openai };
 }
 
@@ -99,6 +104,7 @@ interface AppState {
   setRegion: (r: Region) => Promise<void>;
   setProvider: (p: AIProvider) => Promise<void>;
   setTelemetrySource: (source: TelemetrySource) => Promise<string>;
+  setStepDataOrigin: (origin: "all" | string) => Promise<string>;
   setPermission: (k: keyof Settings["permissions"], v: boolean) => Promise<void>;
   setMode: (m: ProtocolMode) => Promise<void>;
   setThresholds: (t: BiometricThresholds) => Promise<void>;
@@ -281,7 +287,7 @@ export const useStore = create<AppState>((set, get) => ({
     await persistSettings(settings);
 
     if (source === "health_connect") {
-      const res = await syncHealthConnect();
+      const res = await syncHealthConnect({ stepDataOrigin: settings.stepDataOrigin ?? "all" });
       if (res.telemetry && res.telemetry.length > 0) {
         set({ telemetry: res.telemetry });
         await setCollection("telemetry", res.telemetry);
@@ -295,6 +301,24 @@ export const useStore = create<AppState>((set, get) => ({
       await get().reanalyze();
       return "Switched to Mock / Telemetry Simulator";
     }
+  },
+
+  setStepDataOrigin: async (origin) => {
+    const settings = { ...get().settings, stepDataOrigin: origin };
+    set({ settings });
+    await persistSettings(settings);
+
+    if (settings.telemetrySource !== "health_connect") {
+      return "Step source saved. It will apply when Health Connect is synced.";
+    }
+
+    const res = await syncHealthConnect({ stepDataOrigin: origin });
+    if (res.telemetry && res.telemetry.length > 0) {
+      set({ telemetry: res.telemetry });
+      await setCollection("telemetry", res.telemetry);
+      await get().reanalyze();
+    }
+    return res.message;
   },
 
   setPermission: async (k, v) => {
@@ -415,7 +439,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   saveKey: async (which, value) => {
-    await storage.secureSet(`apikey:${which}`, value);
+    const saved = await storage.secureSet(API_KEY_STORAGE[which], value);
+    if (!saved) throw new Error("Could not save API key securely on this device.");
     set({ keys: { ...get().keys, [which]: value } });
   },
 

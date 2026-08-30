@@ -7,6 +7,7 @@ import Svg, {
   LinearGradient,
   Path,
   Stop,
+  Text as SvgText,
 } from "react-native-svg";
 
 import { useTheme } from "@/src/theme/useTheme";
@@ -18,6 +19,7 @@ export function LineChart({
   color,
   height = 190,
   unit,
+  formatValue,
 }: {
   width: number;
   data: number[];
@@ -25,10 +27,12 @@ export function LineChart({
   color: string;
   height?: number;
   unit?: string;
+  formatValue?: (value: number) => string;
 }) {
   const { colors, font, fontSize } = useTheme();
-  const padX = 8;
-  const padTop = 16;
+  const axisWidth = 42;
+  const padRight = 8;
+  const padTop = 12;
   const padBottom = 22;
 
   if (!data.length || width <= 0) {
@@ -38,11 +42,13 @@ export function LineChart({
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
-  const innerW = width - padX * 2;
+  const innerW = width - axisWidth - padRight;
   const innerH = height - padTop - padBottom;
 
-  const x = (i: number) => padX + (innerW * i) / (data.length - 1 || 1);
+  const x = (i: number) => axisWidth + (innerW * i) / (data.length - 1 || 1);
   const y = (v: number) => padTop + innerH * (1 - (v - min) / range);
+  const label = (v: number) => formatValue?.(v) ?? `${Math.round(v)}${unit ?? ""}`;
+  const ticks = [max, min + range / 2, min];
 
   const linePath = data
     .map((v, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
@@ -67,11 +73,47 @@ export function LineChart({
           </LinearGradient>
         </Defs>
 
+        {/* Y-axis and three evenly spaced reference labels. */}
+        <Line
+          x1={axisWidth}
+          y1={padTop}
+          x2={axisWidth}
+          y2={height - padBottom}
+          stroke={colors.outlineVariant}
+          strokeWidth={1}
+        />
+        {ticks.map((tick, index) => {
+          const tickY = y(tick);
+          return (
+            <React.Fragment key={index}>
+              <Line
+                x1={axisWidth}
+                y1={tickY}
+                x2={width - padRight}
+                y2={tickY}
+                stroke={colors.outlineVariant}
+                strokeWidth={1}
+                strokeDasharray="3 5"
+              />
+              <SvgText
+                x={axisWidth - 6}
+                y={tickY + 4}
+                textAnchor="end"
+                fill={colors.textFaint}
+                fontSize={fontSize.xs}
+                fontFamily={font.mono}
+              >
+                {label(tick)}
+              </SvgText>
+            </React.Fragment>
+          );
+        })}
+
         {/* baseline (avg) */}
         <Line
-          x1={padX}
+          x1={axisWidth}
           y1={avgY}
-          x2={width - padX}
+          x2={width - padRight}
           y2={avgY}
           stroke={colors.borderStrong}
           strokeWidth={1}
@@ -102,8 +144,7 @@ export function LineChart({
           14d ago
         </Text>
         <Text style={{ color: colors.textFaint, fontFamily: font.mono, fontSize: fontSize.xs }}>
-          avg {Math.round(avg)}
-          {unit}
+          avg {label(avg)}
         </Text>
         <Text style={{ color: colors.textFaint, fontFamily: font.mono, fontSize: fontSize.xs }}>
           today

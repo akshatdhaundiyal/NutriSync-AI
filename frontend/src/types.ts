@@ -44,7 +44,21 @@ export interface TelemetryDay {
   steps: number;
   sedentaryStressSpike: boolean;
   intake?: boolean; // protocol taken that day (for correlation markers)
+  /** Present for Health Connect records; omitted for existing/mock records. */
+  source?: TelemetrySource;
+  syncedAt?: string;
+  metricSources?: Partial<Record<TelemetryMetric, "live" | "estimated">>;
+  /** Health Connect package IDs contributing to the aggregated step total. */
+  stepDataOrigins?: string[];
+  stepAggregation?: "health_connect_aggregate" | "source_filtered";
 }
+
+export type TelemetryMetric =
+  | "deepSleepMin"
+  | "hrvMs"
+  | "restingHr"
+  | "strain"
+  | "steps";
 
 export interface Baselines {
   deepSleepMin: number;
@@ -162,6 +176,8 @@ export interface Settings {
   region: Region;
   aiProvider: AIProvider;
   telemetrySource?: TelemetrySource;
+  /** "all" uses Health Connect's de-duplicated aggregate across sources. */
+  stepDataOrigin?: "all" | string;
   permissions: Permissions;
   activePreset: string;
   mode: ProtocolMode;

@@ -14,6 +14,11 @@ export interface LiveSyncResult {
   message: string;
 }
 
+export interface HealthConnectSyncOptions {
+  /** "all" uses Health Connect's duplicate-aware aggregate; a package ID locks to one writer. */
+  stepDataOrigin?: "all" | string;
+}
+
 // Fallback population baselines if a wearable does not measure a specific metric
 const DEFAULT_FALLBACKS = {
   deepSleepMin: 72,
@@ -77,7 +82,9 @@ export async function checkHealthConnectStatus(): Promise<HealthConnectStatus> {
  * Synchronizes 14-day rolling historical telemetry from Health Connect.
  * Populates 7-day baselines, 14-day trends, and today's readiness.
  */
-export async function syncHealthConnect(): Promise<LiveSyncResult> {
+export async function syncHealthConnect(
+  options: HealthConnectSyncOptions = {},
+): Promise<LiveSyncResult> {
   if (Platform.OS !== "android") {
     // Return simulated live 14-day bridge sample on Web/iOS so UI can be previewed
     return {
@@ -142,6 +149,7 @@ export async function syncHealthConnect(): Promise<LiveSyncResult> {
 
       // 1. Sleep: Query SleepSession records
       let deepSleepMinutes = 0;
+      let hasMeasuredDeepSleep = false;
       try {
         const sleepRes = await HealthConnect.readRecords("SleepSession", { timeRangeFilter });
         if (sleepRes?.records?.length > 0) {
@@ -153,6 +161,7 @@ export async function syncHealthConnect(): Promise<LiveSyncResult> {
                   const startMs = new Date(stage.startTime).getTime();
                   const endMs = new Date(stage.endTime).getTime();
                   deepSleepMinutes += Math.round((endMs - startMs) / 60000);
+                  hasMeasuredDeepSleep = true;
                 }
               }
             } else {
@@ -168,31 +177,45 @@ export async function syncHealthConnect(): Promise<LiveSyncResult> {
 
       // 2. HRV: Query HeartRateVariabilityRmssd
       let hrvAvg = 0;
+      let hasMeasuredHrv = false;
       try {
         const hrvRes = await HealthConnect.readRecords("HeartRateVariabilityRmssd", { timeRangeFilter });
         if (hrvRes?.records?.length > 0) {
           const sum = hrvRes.records.reduce((acc: number, r: any) => acc + (r.heartRateVariabilityMillis || 0), 0);
           hrvAvg = Math.round(sum / hrvRes.records.length);
+          hasMeasuredHrv = hrvAvg > 0;
         }
       } catch {}
 
       // 3. Resting Heart Rate
       let restingHr = 0;
+      let hasMeasuredRestingHr = false;
       try {
         const rhrRes = await HealthConnect.readRecords("RestingHeartRate", { timeRangeFilter });
         if (rhrRes?.records?.length > 0) {
           const sum = rhrRes.records.reduce((acc: number, r: any) => acc + (r.beatsPerMinute || 0), 0);
           restingHr = Math.round(sum / rhrRes.records.length);
+          hasMeasuredRestingHr = restingHr > 0;
         }
       } catch {}
 
-      // 4. Steps
+      // 4. Steps: use Health Connect's aggregate rather than summing raw records.
+      // Aggregation resolves overlapping records from Samsung Health, Google Fit, and the phone.
       let steps = 0;
+      let hasMeasuredSteps = false;
+      let stepDataOrigins: string[] = [];
       try {
-        const stepsRes = await HealthConnect.readRecords("Steps", { timeRangeFilter });
-        if (stepsRes?.records?.length > 0) {
-          steps = stepsRes.records.reduce((acc: number, r: any) => acc + (r.count || 0), 0);
+        const stepRequest: any = {
+          recordType: "Steps",
+          timeRangeFilter,
+        };
+        if (options.stepDataOrigin && options.stepDataOrigin !== "all") {
+          stepRequest.dataOriginFilter = [options.stepDataOrigin];
         }
+        const stepsRes = await HealthConnect.aggregateRecord(stepRequest);
+        steps = Math.round(Number(stepsRes?.COUNT_TOTAL ?? 0));
+        hasMeasuredSteps = typeof stepsRes?.COUNT_TOTAL === "number";
+        stepDataOrigins = Array.isArray(stepsRes?.dataOrigins) ? stepsRes.dataOrigins : [];
       } catch {}
 
       // 5. Workouts & Strain calculation
@@ -225,13 +248,31 @@ export async function syncHealthConnect(): Promise<LiveSyncResult> {
         strain: finalStrain,
         steps: steps > 0 ? steps : DEFAULT_FALLBACKS.steps,
         sedentaryStressSpike: finalRestingHr > 72 && finalStrain < 7.0,
+        source: "health_connect",
+        syncedAt: now.toISOString(),
+        // Strain is a NutriSync-derived score, and unsegmented sleep is estimated.
+        metricSources: {
+          deepSleepMin: hasMeasuredDeepSleep ? "live" : "estimated",
+          hrvMs: hasMeasuredHrv ? "live" : "estimated",
+          restingHr: hasMeasuredRestingHr ? "live" : "estimated",
+          strain: "estimated",
+          steps: hasMeasuredSteps ? "live" : "estimated",
+        },
+        stepDataOrigins,
+        stepAggregation:
+          options.stepDataOrigin && options.stepDataOrigin !== "all"
+            ? "source_filtered"
+            : "health_connect_aggregate",
       });
     }
 
     return {
       success: true,
       telemetry: telemetryDays,
-      message: `Successfully synchronized 14 days of Health Connect records.`,
+      message:
+        options.stepDataOrigin && options.stepDataOrigin !== "all"
+          ? "Successfully synchronized 14 days using the selected step source."
+          : "Successfully synchronized 14 days with de-duplicated Health Connect steps.",
     };
   } catch (err: any) {
     return {
